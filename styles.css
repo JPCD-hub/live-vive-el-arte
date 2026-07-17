@@ -1,0 +1,110 @@
+:root { --green:#003c2d; --green-dark:#00271e; --red:#d41918; --cream:#f4eddf; --ink:#142019; --line:#cfc4af; --paper:#fcf7ed; }
+* { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body { margin:0; color:var(--ink); background:var(--paper); font-family:Arial, Helvetica, sans-serif; }
+body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.18; z-index:2; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E"); }
+button,input,select,textarea { font:inherit; } button { cursor:pointer; } a { color:inherit; }
+.topbar { max-width:1200px; margin:auto; padding:22px 32px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }
+.brand { display:flex; flex-direction:column; gap:1px; color:var(--green); text-decoration:none; font-size:11px; font-weight:bold; letter-spacing:1.2px; text-transform:uppercase; }.brand-live { font-size:38px; font-weight:900; line-height:.76; letter-spacing:-3px; }.brand-live span { color:var(--red); }
+nav { display:flex; gap:28px; } nav a { color:var(--green); font-size:12px; font-weight:bold; letter-spacing:1.3px; text-decoration:none; text-transform:uppercase; } nav a:hover,.text-link:hover { color:var(--red); }
+main { max-width:1200px; margin:auto; }.hero { min-height:440px; padding:75px 32px 60px; display:grid; grid-template-columns:1.3fr .7fr; gap:60px; align-items:center; }
+.eyebrow { margin:0 0 10px; color:var(--green); font-size:12px; letter-spacing:2px; font-weight:bold; }.eyebrow i { font-family:cursive; font-size:25px; letter-spacing:0; font-weight:normal; }
+h1,h2,p { margin-top:0; } h1 { max-width:650px; margin-bottom:18px; color:var(--green); font-size:clamp(46px,7vw,88px); line-height:.87; letter-spacing:-4px; text-transform:uppercase; } h2 { color:var(--green); font-size:32px; margin-bottom:0; text-transform:uppercase; letter-spacing:-1px; }.hero-copy { max-width:520px; font-size:18px; line-height:1.55; }
+.hero-actions,.data-actions,.form-actions,.scan-actions { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }.hero-actions { margin-top:30px; }.button { display:inline-flex; align-items:center; justify-content:center; min-height:42px; border:1px solid transparent; padding:10px 17px; font-size:12px; font-weight:bold; letter-spacing:.9px; text-decoration:none; text-transform:uppercase; transition:transform .15s,background .15s; }.button:hover { transform:translateY(-2px); }.button-primary { color:var(--cream); background:var(--green); }.button-cream { background:var(--cream); color:var(--green); }.button-ghost { background:transparent; border-color:#d1e0d6; color:var(--cream); }.button-outline { color:var(--green); border-color:var(--green); background:transparent; }.text-link { color:var(--green); font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:1px; }
+.hero-card { position:relative; overflow:hidden; transform:rotate(2deg); box-shadow:10px 12px 0 #d8cdb9; }.hero-card img { display:block; width:100%; aspect-ratio:1.414; object-fit:cover; }.hero-card > span { position:absolute; right:0; bottom:0; padding:8px 11px; color:var(--cream); background:var(--green); font-size:10px; font-weight:bold; letter-spacing:1px; }
+.stats { display:grid; grid-template-columns:repeat(3,1fr); border-top:1px solid var(--line); border-bottom:1px solid var(--line); margin:0 32px; }.stats article { padding:25px 30px; }.stats article+article { border-left:1px solid var(--line); }.stats span { display:block; color:var(--green); font-size:11px; font-weight:bold; letter-spacing:1.4px; }.stats strong { display:block; margin-top:5px; font-size:34px; color:var(--green); }
+.workspace { padding:85px 32px; }.section-heading { display:flex; justify-content:space-between; gap:25px; align-items:end; margin-bottom:32px; }.toolbar { display:flex; justify-content:space-between; gap:20px; align-items:end; padding-bottom:17px; border-bottom:1px solid var(--line); }.search { display:flex; flex-direction:column; gap:6px; color:var(--green); font-size:10px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; }.search input { width:min(390px,70vw); padding:9px 0; border:0; border-bottom:1px solid var(--green); color:var(--ink); background:transparent; outline:0; }.muted { margin:0; color:#5c655e; font-size:13px; }
+.people-list { display:grid; }.person-row { display:grid; grid-template-columns:minmax(0,1fr) 115px 150px; gap:22px; align-items:center; padding:19px 4px; border-bottom:1px solid var(--line); }.person-main { min-width:0; }.person-name { margin:0 0 4px; color:var(--green); font-size:18px; font-weight:bold; }.person-detail { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#64675f; font-size:13px; }.attendance { color:var(--green); font-size:12px; font-weight:bold; letter-spacing:.5px; }.attendance b { font-size:23px; }.row-actions { display:flex; justify-content:end; gap:8px; }.small-button { border:0; color:var(--green); background:transparent; padding:7px; font-size:11px; font-weight:bold; text-decoration:underline; text-underline-offset:4px; text-transform:uppercase; }.small-button.delete { color:#9f2923; }.empty-state { padding:48px 15px; text-align:center; color:#59635c; }.empty-state b,.empty-state span { display:block; }.empty-state span { margin-top:8px; font-size:14px; }
+.checkin-section { padding:75px max(32px,calc((100vw - 1200px)/2 + 32px)); color:var(--cream); background:var(--green); }.light-heading h2,.light-heading .eyebrow { color:var(--cream); }.light-heading > p { margin:0; max-width:260px; font-size:14px; }.checkin-grid { display:grid; grid-template-columns:1fr 1fr; gap:20px; }.checkin-card { min-height:195px; padding:26px; border:1px solid #759286; background:var(--green-dark); }.checkin-card label,.form-modal label { display:flex; flex-direction:column; gap:8px; font-size:11px; font-weight:bold; letter-spacing:1.2px; text-transform:uppercase; }.checkin-card select { width:100%; padding:12px; color:var(--cream); border:1px solid #78958a; background:#013a2c; outline:0; }.scan-actions { margin-top:20px; }.scan-note { color:#c5d4cc; font-size:13px; line-height:1.4; }.manual-checkin { display:flex; flex-direction:column; justify-content:space-between; }.feedback { min-height:19px; margin:14px 0 0; color:#f2d78c; font-size:13px; }.feedback.error { color:#ffaaa5; } #qr-reader { margin-top:20px; overflow:hidden; background:#fff; }
+.event-list { display:grid; grid-template-columns:repeat(3,1fr); gap:17px; }.event-card { position:relative; min-height:175px; padding:23px; border:1px solid var(--line); background:#f7f0e4; }.event-card:first-child { border-color:var(--green); }.event-date { color:var(--red); font-size:11px; font-weight:bold; letter-spacing:1px; text-transform:uppercase; }.event-card h3 { max-width:85%; margin:12px 0 7px; color:var(--green); font-size:22px; text-transform:uppercase; line-height:1; }.event-card p { margin:0; color:#5a625b; font-size:13px; line-height:1.35; }.event-attendance { position:absolute; right:20px; bottom:20px; color:var(--green); font-size:11px; font-weight:bold; text-transform:uppercase; }.event-delete { position:absolute; top:13px; right:13px; }
+.data-section { display:flex; justify-content:space-between; gap:35px; align-items:center; margin:0 32px 80px; padding:35px 0; border-top:4px solid var(--green); border-bottom:1px solid var(--line); }.data-section h2 { font-size:23px; }.data-section p:last-child { max-width:500px; margin:10px 0 0; color:#515a53; }.import-label { cursor:pointer; }
+footer { padding:35px 32px; color:var(--cream); background:var(--green-dark); text-align:center; font-size:11px; font-weight:bold; letter-spacing:1.5px; } footer span { margin-left:18px; color:#dbd1c2; font-family:cursive; font-size:19px; font-weight:normal; letter-spacing:0; }
+.modal { border:0; padding:0; color:var(--ink); background:var(--paper); box-shadow:0 20px 60px #001b1480; }.modal::backdrop { background:#001b14a3; }.form-modal { width:min(520px,calc(100vw - 30px)); }.form-modal form { display:grid; gap:20px; padding:30px; }.modal-heading { display:flex; justify-content:space-between; align-items:start; }.modal-heading h2 { font-size:28px; }.icon-button { border:0; color:var(--green); background:transparent; font-size:30px; line-height:.7; }.form-modal input,.form-modal textarea { width:100%; padding:11px 0; border:0; border-bottom:1px solid var(--green); background:transparent; outline:0; }.form-modal textarea { min-height:65px; resize:vertical; }.form-actions { justify-content:end; margin-top:7px; }
+.ticket-modal { width:min(680px,calc(100vw - 24px)); overflow:hidden; }.ticket-close { position:absolute; top:19px; right:17px; z-index:1; color:var(--cream); }.ticket-actions { display:flex; justify-content:center; padding:18px; border-top:1px solid var(--line); }.ticket { position:relative; overflow:hidden; background:#f6eedf; }.ticket-art { position:relative; line-height:0; }.ticket-art > img { display:block; width:100%; }.reference-stamp { position:absolute; z-index:1; display:grid; width:10%; aspect-ratio:1; place-items:center; border:2px solid transparent; border-radius:50%; color:var(--cream); background:transparent; font-size:clamp(14px,3vw,24px); font-weight:bold; line-height:1; }.reference-stamp.active { border-color:var(--red); background:#003c2de8; }.reference-stamp-1 { left:49%; top:51.7%; }.reference-stamp-2 { left:67%; top:51.7%; }.reference-stamp-3 { left:85%; top:51.7%; }.reference-stamp-4 { left:49%; top:66.5%; }.reference-stamp-5 { left:67%; top:66.5%; }.reference-benefit { position:absolute; left:85%; top:66.5%; z-index:1; display:grid; width:10%; aspect-ratio:1; place-items:center; border:2px solid var(--red); border-radius:50%; color:var(--cream); background:#003c2de8; font-size:clamp(7px,1.5vw,11px); font-weight:bold; letter-spacing:.3px; }.ticket-personal { display:grid; grid-template-columns:1fr 130px; gap:25px; align-items:center; padding:25px 34px 27px; border-top:5px solid var(--green); background:#f6eedf; }.ticket-person { margin:0 0 5px; color:var(--green); font-size:25px; font-weight:bold; }.ticket-code { color:#667068; font-size:11px; letter-spacing:1px; }.ticket-label { margin:0 0 9px; color:var(--green); font-size:11px; font-weight:bold; letter-spacing:1px; }.ticket-visits { margin:14px 0 0; color:#414b43; font-size:13px; line-height:1.35; }.qr { min-height:130px; padding:7px; background:#fff; }.qr img { display:block; width:100%; }
+@media print { body > *:not(#ticket-modal) { display:none!important; } #ticket-modal { display:block!important; position:static; width:100%; box-shadow:none; } .ticket-actions,.ticket-close { display:none!important; } }
+@media (max-width:700px) { .topbar { padding:19px 20px; }.topbar nav { gap:13px; }.topbar nav a { font-size:10px; }.brand-live { font-size:31px; }.hero { min-height:auto; padding:58px 20px 52px; grid-template-columns:1fr; gap:42px; }.hero-card { max-width:360px; margin-left:7px; }.stats { margin:0 20px; }.stats article { padding:17px 14px; }.stats strong { font-size:27px; }.workspace { padding:58px 20px; }.section-heading { align-items:start; }.section-heading h2 { font-size:26px; }.section-heading .button { padding:9px 11px; }.person-row { grid-template-columns:1fr auto; gap:10px; }.attendance { grid-column:1; }.row-actions { grid-column:2; grid-row:1 / span 2; flex-direction:column; }.checkin-section { padding:58px 20px; }.checkin-grid,.event-list { grid-template-columns:1fr; }.data-section { display:block; margin:0 20px 55px; }.data-actions { margin-top:23px; }.ticket-personal { grid-template-columns:1fr 105px; gap:15px; padding:21px; }.qr { min-height:105px; } }
+
+.ticket-type { display:inline-block; margin-left:6px; padding:3px 5px; vertical-align:2px; color:var(--cream); background:var(--green); font-size:9px; font-weight:bold; letter-spacing:.6px; text-transform:uppercase; }
+.ticket-type.courtesy { color:var(--green); background:#e4d4ba; }
+.form-modal select { width:100%; padding:11px 0; border:0; border-bottom:1px solid var(--green); color:var(--ink); background:transparent; outline:0; }
+.ticket-courtesy .reference-stamp { width:13.5%; }
+.ticket-courtesy .reference-stamp-1 { left:52%; top:48.5%; }
+.ticket-courtesy .reference-stamp-2 { left:68.2%; top:48.5%; }
+.ticket-courtesy .reference-stamp-3 { left:84.1%; top:48.5%; }
+.ticket-courtesy .reference-stamp.active { border-width:3px; }
+
+/* Keep the vertical loyalty ticket and its QR visible within a normal laptop viewport. */
+.ticket-modal { max-height:94vh; overflow-y:auto; background:#f6eedf; }
+.ticket-close { top:13px; right:13px; color:var(--green); background:var(--cream); border-radius:50%; width:30px; height:30px; line-height:1; }
+.ticket-regular .ticket-art { width:min(100%,45vh); margin:0 auto; }
+.ticket-regular .ticket-art > img { width:100%; }
+.ticket-personal { max-width:560px; grid-template-columns:1fr 100px; gap:20px; margin:0 auto; padding:18px 24px 20px; }
+.ticket-person { font-size:22px; }
+.ticket-visits { margin-top:10px; }
+.qr { min-height:100px; }
+
+@media (max-width:700px) {
+  .ticket-regular .ticket-art { width:min(100%,52vh); }
+  .ticket-personal { grid-template-columns:1fr 90px; gap:12px; padding:16px 18px; }
+  .qr { min-height:90px; }
+}
+
+/* The courtesy template is horizontal: use its real stamp positions and a smaller check marker. */
+.ticket-courtesy .ticket-art { width:min(100%,80vh); margin:0 auto; }
+.ticket-courtesy .reference-stamp-1 { left:54.5%; top:52.6%; }
+.ticket-courtesy .reference-stamp-2 { left:67.3%; top:52.6%; }
+.ticket-courtesy .reference-stamp-3 { left:80.4%; top:52.6%; }
+.reference-stamp.active { border-color:var(--red); transform:scale(.52); background:#003c2de8; }
+.ticket-courtesy .reference-stamp.active { border-width:4px; }
+
+/* Use the unused space beside the vertical regular ticket for its digital credentials. */
+.ticket-regular { display:grid; grid-template-columns:minmax(330px,45vh) minmax(250px,1fr); align-items:stretch; }
+.ticket-regular .ticket-art { width:100%; margin:0; }
+.ticket-regular .ticket-personal { display:grid; grid-template-columns:1fr; align-content:center; max-width:none; margin:0; padding:30px 26px; border-top:0; border-left:4px solid var(--green); }
+.ticket-regular .qr { width:120px; min-height:120px; margin-top:24px; }
+
+@media (max-width:700px) {
+  .ticket-regular { display:block; }
+  .ticket-regular .ticket-art { width:min(100%,52vh); margin:0 auto; }
+  .ticket-regular .ticket-personal { grid-template-columns:1fr 90px; align-content:initial; padding:16px 18px; border-top:3px solid var(--green); border-left:0; }
+  .ticket-regular .qr { width:auto; min-height:90px; margin-top:0; }
+}
+
+/* A registered visit fills the complete printed stamp, not only its center. */
+.reference-stamp.active { transform:none; }
+.ticket-regular .reference-stamp { width:15%; }
+.ticket-regular .reference-stamp-1 { left:44.8%; top:50.5%; }
+.ticket-regular .reference-stamp-2 { left:62.8%; top:50.5%; }
+.ticket-regular .reference-stamp-3 { left:80.8%; top:50.5%; }
+.ticket-regular .reference-stamp-4 { left:44.8%; top:65.3%; }
+.ticket-regular .reference-stamp-5 { left:62.8%; top:65.3%; }
+.ticket-courtesy .reference-stamp { width:11%; }
+.ticket-courtesy .reference-stamp-1 { left:54.5%; top:53.85%; }
+.ticket-courtesy .reference-stamp-2 { left:68.55%; top:53.85%; }
+.ticket-courtesy .reference-stamp-3 { left:81.65%; top:53.85%; }
+
+.reference-stamp.active { border-color:transparent; background:transparent; font-size:0; }
+.reference-stamp.active::before,.reference-stamp.active::after { position:absolute; width:58%; height:4px; border-radius:99px; background:var(--red); content:""; }
+.reference-stamp.active::before { top:50%; left:50%; transform:translate(-50%,-50%) rotate(45deg); }
+.reference-stamp.active::after { top:50%; left:50%; transform:translate(-50%,-50%) rotate(-45deg); }
+
+.ticket-modal { width:min(760px,calc(100vw - 24px)); }
+.ticket-regular { grid-template-columns:58% 42%; }
+
+/* Keep unused stamps clean; a coffee bean appears only after a confirmed visit. */
+.reference-stamp { font-size:0; }
+.reference-stamp::before { position:absolute; top:50%; left:50%; width:47%; height:47%; border-radius:50%; background:#f4eddf; content:""; transform:translate(-50%,-50%); }
+.reference-stamp.active::before { width:47%; height:47%; border-radius:50%; background:#f4eddf; transform:translate(-50%,-50%); }
+.reference-stamp.active::after { position:absolute; top:50%; left:50%; width:32%; height:48%; border-radius:50%; background:linear-gradient(132deg,transparent 42%,#f4eddf 44%,#f4eddf 53%,transparent 55%),#4a2708; content:""; transform:translate(-50%,-50%) rotate(28deg); }
+.ticket-regular .reference-stamp::before,.ticket-regular .reference-stamp.active::before { width:65%; height:65%; }
+.ticket-regular .reference-stamp::before,.ticket-regular .reference-stamp.active::before { transform:translate(-50%,-25%); }
+.ticket-regular .reference-stamp.active::after { transform:translate(-50%,-25%) rotate(28deg); }
+
+.ticket-codes { display:flex; flex-wrap:wrap; gap:14px; align-items:end; }
+.ticket-qr-item { display:grid; gap:6px; color:var(--green); font-size:9px; font-weight:bold; letter-spacing:.9px; text-transform:uppercase; }
+.ticket-qr-item .qr { width:100px; min-height:100px; }
+.reward-qr { padding:9px; border:2px solid var(--red); background:#fff8ea; }
+.reward-qr span { color:var(--red); }
+.reward-qr .qr { width:106px; min-height:106px; }
+.ticket-regular .ticket-codes { margin-top:24px; }
+@media (max-width:700px) { .ticket-codes { justify-content:end; }.ticket-qr-item .qr,.reward-qr .qr { width:90px; min-height:90px; }.ticket-regular .ticket-codes { margin-top:0; } }
