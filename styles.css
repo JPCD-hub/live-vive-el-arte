@@ -8,6 +8,15 @@ button,input,select,textarea { font:inherit; } button { cursor:pointer; } a { co
 .topbar { max-width:1200px; margin:auto; padding:22px 32px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }
 .auth-actions { display:flex; align-items:center; justify-content:end; gap:8px; max-width:290px; color:#59635c; font-size:11px; text-align:right; }.auth-status { line-height:1.3; }
 .auth-help { margin:0; color:#536057; font-size:14px; line-height:1.45; }
+
+/* Public landing view keeps the private ticket experience clear and intentional. */
+.public-message { width:min(1080px,calc(100% - 64px)); min-height:calc(100vh - 165px); display:grid; grid-template-columns:minmax(0,1fr) 280px; align-items:center; gap:80px; margin:0 auto; padding:48px 0 70px; }
+.public-message-copy > p:last-child { max-width:540px; margin:0; font-size:18px; line-height:1.55; }
+.public-message-preview { position:relative; justify-self:end; width:270px; padding:7px; background:#f7f0e4; box-shadow:12px 14px 0 #d8cdb9; transform:rotate(3deg); }
+.public-message-preview img { display:block; width:100%; aspect-ratio:3 / 4; object-fit:cover; }
+.public-message-preview span { position:absolute; right:-9px; bottom:-13px; padding:8px 10px; color:var(--cream); background:var(--green); font-size:9px; font-weight:bold; letter-spacing:1px; }
+.auth-actions .button { min-height:36px; padding:8px 11px; white-space:nowrap; }
+@media (max-width:700px) { .topbar { display:block; }.auth-actions { width:min(350px,100%); flex-direction:column; align-items:flex-start; margin-top:14px; text-align:left; }.public-message { width:calc(100% - 40px); min-height:calc(100vh - 150px); grid-template-columns:1fr; gap:36px; padding:42px 0 58px; }.public-message-copy { width:min(340px,100%); }.public-message h1 { max-width:340px; font-size:clamp(40px,12vw,54px); }.public-message-preview { justify-self:start; width:220px; }.public-message-copy > p:last-child { font-size:16px; } }
 .brand { display:flex; flex-direction:column; gap:1px; color:var(--green); text-decoration:none; font-size:11px; font-weight:bold; letter-spacing:1.2px; text-transform:uppercase; }.brand-live { font-size:38px; font-weight:900; line-height:.76; letter-spacing:-3px; }.brand-live span { color:var(--red); }
 nav { display:flex; gap:28px; } nav a { color:var(--green); font-size:12px; font-weight:bold; letter-spacing:1.3px; text-decoration:none; text-transform:uppercase; } nav a:hover,.text-link:hover { color:var(--red); }
 main { max-width:1200px; margin:auto; }.hero { min-height:440px; padding:75px 32px 60px; display:grid; grid-template-columns:1.3fr .7fr; gap:60px; align-items:center; }
