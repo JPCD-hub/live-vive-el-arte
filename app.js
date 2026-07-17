@@ -1,53 +1,138 @@
-const STORAGE_KEY = 'live-vive-el-arte-v1';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  limit,
+  onSnapshot,
+  query,
+  runTransaction,
+  serverTimestamp,
+  setDoc,
+  where,
+  writeBatch,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: 'AIzaSyBK9l6lVxoAfgiLmLmK2qJCIVwFc0xNfqI',
+  authDomain: 'ticket-service-c2eac.firebaseapp.com',
+  projectId: 'ticket-service-c2eac',
+  storageBucket: 'ticket-service-c2eac.firebasestorage.app',
+  messagingSenderId: '1089836979524',
+  appId: '1:1089836979524:web:786436a0b9287267ca7311',
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
 const BENEFIT_VISITS = 5;
+const APP_NAME = 'live-vive-el-arte';
+const publicTicketToken = new URLSearchParams(window.location.search).get('boleta');
+const state = { people: [], events: [], checkins: [], benefits: [], tickets: new Map() };
+const $ = (selector) => document.querySelector(selector);
 let scanner = null;
 let displayedTicket = null;
+let operationalUnsubscribers = [];
+let isAdmin = false;
+let ticketRenderNumber = 0;
 
-const state = loadState();
-const $ = (selector) => document.querySelector(selector);
-
-function loadState() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved && Array.isArray(saved.people) && Array.isArray(saved.events) && Array.isArray(saved.checkins)) { saved.benefits ??= []; return saved; }
-  } catch (_) { /* Use a clean database when saved content is invalid. */ }
-  return { people: [], events: [{ id: createId(), name: 'Vive el Arte', date: localDate(), description: 'Encuentro semanal de la comunidad.' }], checkins: [], benefits: [] };
-}
-function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-function createId() { return crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function localDate() { return new Date().toISOString().slice(0, 10); }
 function escapeHtml(value = '') { const node = document.createElement('div'); node.textContent = value; return node.innerHTML; }
-function countVisits(personId) { return state.checkins.filter((item) => item.personId === personId).length; }
-function isCourtesy(person) { return person.ticketType === 'courtesy'; }
-function ticketLabel(person) { return isCourtesy(person) ? 'Cortesía' : 'Regular'; }
 function formatDate(value) { return new Intl.DateTimeFormat('es-CO', { dateStyle: 'long' }).format(new Date(`${value}T12:00:00`)); }
-function currentEvent() { return state.events.find((event) => event.id === $('#active-event').value) || state.events[0]; }
-function availableBenefit(personId) { return state.benefits.find((benefit) => benefit.personId === personId && !benefit.usedAt); }
-function grantPendingBenefits() {
-  let changed = false;
-  state.people.filter((person) => !isCourtesy(person)).forEach((person) => {
-    const earned = Math.floor(countVisits(person.id) / BENEFIT_VISITS);
-    const issued = state.benefits.filter((benefit) => benefit.personId === person.id).length;
-    for (let index = issued; index < earned; index += 1) {
-      const qualifyingCheckin = state.checkins.filter((checkin) => checkin.personId === person.id)[((index + 1) * BENEFIT_VISITS) - 1];
-      const qualifyingEvent = state.events.find((event) => event.id === qualifyingCheckin?.eventId);
-      const nextEvent = state.events.filter((event) => event.date > (qualifyingEvent?.date || localDate())).sort((a, b) => a.date.localeCompare(b.date))[0];
-      if (!nextEvent) break;
-      state.benefits.push({ id: createId(), personId: person.id, eventId: nextEvent.id, eventName: nextEvent.name, earnedAt: new Date().toISOString(), usedAt: null });
-      changed = true;
-    }
+function isCourtesy(person) { return person.ticketType === 'courtesy'; }
+function ticketLabel(ticket) { return ticket.ticketType === 'courtesy' ? 'Cortesía' : 'Regular'; }
+function requiredVisits(ticket) { return ticket.ticketType === 'courtesy' ? 3 : BENEFIT_VISITS; }
+function ticketForPerson(person) { return state.tickets.get(person.ticketToken); }
+function countVisits(person) { return ticketForPerson(person)?.visits ?? state.checkins.filter((checkin) => checkin.personId === person.id).length; }
+function sortedEvents() { return state.events.slice().sort((a, b) => a.date.localeCompare(b.date)); }
+function currentEvent() { return state.events.find((event) => event.id === $('#active-event').value) || sortedEvents()[0]; }
+function nextEventAfter(event, events = state.events) { return events.slice().sort((a, b) => a.date.localeCompare(b.date)).find((candidate) => candidate.date > event.date); }
+function setFeedback(message, error = false) {
+  const feedback = $('#checkin-feedback');
+  feedback.textContent = message;
+  feedback.classList.toggle('error', error);
+}
+function randomToken() {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function checkinRef(eventId, personId) { return doc(db, 'checkins', `${eventId}_${personId}`); }
+function benefitRef(personId, visitNumber) { return doc(db, 'benefits', `${personId}_${visitNumber}`); }
+
+class UserMessageError extends Error {}
+function userError(message) { throw new UserMessageError(message); }
+function requireAdmin() {
+  if (!isAdmin) userError('Tu cuenta no tiene acceso de administración.');
+}
+function reportOperationError(error) {
+  console.error(error);
+  setFeedback(error instanceof UserMessageError ? error.message : 'No se pudo guardar el cambio. Revisa tu conexión y permisos.', true);
+}
+
+function updateAccessUi(user = auth.currentUser) {
+  const hasTicket = Boolean(publicTicketToken);
+  $('#admin-app').hidden = !isAdmin;
+  $('#admin-nav').hidden = !isAdmin;
+  $('#sign-in').hidden = Boolean(user);
+  $('#sign-out').hidden = !user;
+  $('#auth-status').textContent = isAdmin
+    ? `Administrando como ${user.displayName || user.email}`
+    : user
+      ? 'Esta cuenta no tiene acceso de administración.'
+      : 'Consulta tu boleta con su enlace personal.';
+  $('#public-ticket-view').hidden = !hasTicket;
+  $('#public-message').hidden = hasTicket || isAdmin;
+}
+
+function stopOperationalListeners() {
+  operationalUnsubscribers.forEach((unsubscribe) => unsubscribe());
+  operationalUnsubscribers = [];
+  state.people = [];
+  state.events = [];
+  state.checkins = [];
+  state.benefits = [];
+  state.tickets = new Map();
+}
+
+function listenToOperationalData() {
+  const listen = (name, apply) => onSnapshot(collection(db, name), (snapshot) => {
+    apply(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+    render();
+  }, (error) => {
+    console.error(`No se pudo leer ${name}`, error);
+    setFeedback('No se pudieron actualizar los datos operativos.', true);
   });
-  return changed;
+  operationalUnsubscribers = [
+    listen('people', (items) => { state.people = items; }),
+    listen('events', (items) => { state.events = items; }),
+    listen('checkins', (items) => { state.checkins = items; }),
+    listen('benefits', (items) => { state.benefits = items; }),
+    listen('tickets', (items) => { state.tickets = new Map(items.map((item) => [item.id, item])); }),
+  ];
 }
 
 function render() {
-  renderStats(); renderPeople(); renderEvents(); renderSelects();
+  if (!isAdmin) return;
+  renderStats();
+  renderPeople();
+  renderEvents();
+  renderSelects();
 }
 function renderStats() {
-  const benefitPeople = state.benefits.filter((benefit) => !benefit.usedAt).length;
   $('#total-people').textContent = state.people.length;
   $('#total-events').textContent = state.events.length;
-  $('#total-benefits').textContent = benefitPeople;
+  $('#total-benefits').textContent = state.benefits.filter((benefit) => !benefit.usedAt).length;
 }
 function renderPeople() {
   const search = $('#person-search').value.trim().toLowerCase();
@@ -56,152 +141,345 @@ function renderPeople() {
   $('#empty-people').hidden = state.people.length !== 0;
   $('#people-list').innerHTML = people.map((person) => {
     const contact = [person.email, person.phone].filter(Boolean).join(' · ') || 'Sin datos de contacto';
-    const visits = countVisits(person.id);
-    const requiredVisits = isCourtesy(person) ? 3 : BENEFIT_VISITS;
-    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${visits}</b> / ${requiredVisits} visitas</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button><button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
+    const visits = countVisits(person);
+    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${visits}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} visitas</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button><button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
   }).join('');
 }
 function renderEvents() {
-  $('#event-list').innerHTML = state.events.slice().sort((a, b) => b.date.localeCompare(a.date)).map((event) => {
+  $('#event-list').innerHTML = sortedEvents().reverse().map((event) => {
     const attendances = state.checkins.filter((item) => item.eventId === event.id).length;
-    return `<article class="event-card"><button class="small-button delete event-delete" data-delete-event="${event.id}">Eliminar</button><span class="event-date">${formatDate(event.date)}</span><h3>${escapeHtml(event.name)}</h3><p>${escapeHtml(event.description || 'Sin descripcion.')}</p><span class="event-attendance">${attendances} ingresos</span></article>`;
+    return `<article class="event-card"><button class="small-button delete event-delete" data-delete-event="${event.id}">Eliminar</button><span class="event-date">${formatDate(event.date)}</span><h3>${escapeHtml(event.name)}</h3><p>${escapeHtml(event.description || 'Sin descripción.')}</p><span class="event-attendance">${attendances} ingresos</span></article>`;
   }).join('');
 }
 function renderSelects() {
+  const events = sortedEvents();
   const selectedEvent = $('#active-event').value;
-  $('#active-event').innerHTML = state.events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} · ${formatDate(event.date)}</option>`).join('');
-  $('#active-event').value = state.events.some((event) => event.id === selectedEvent) ? selectedEvent : (state.events[0]?.id || '');
+  $('#active-event').innerHTML = events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} · ${formatDate(event.date)}</option>`).join('');
+  $('#active-event').value = events.some((event) => event.id === selectedEvent) ? selectedEvent : (events[0]?.id || '');
   const selectedPerson = $('#manual-person').value;
-  $('#manual-person').innerHTML = '<option value="">Selecciona una persona</option>' + state.people.slice().sort((a, b) => a.name.localeCompare(b.name)).map((person) => `<option value="${person.id}">${escapeHtml(person.name)} (${countVisits(person.id)} visitas)</option>`).join('');
+  $('#manual-person').innerHTML = '<option value="">Selecciona una persona</option>' + state.people.slice().sort((a, b) => a.name.localeCompare(b.name)).map((person) => `<option value="${person.id}">${escapeHtml(person.name)} (${countVisits(person)} visitas)</option>`).join('');
   $('#manual-person').value = state.people.some((person) => person.id === selectedPerson) ? selectedPerson : '';
-  $('#manual-checkin').disabled = !state.people.length || !state.events.length;
-  $('#start-scanner').disabled = !state.people.length || !state.events.length;
+  $('#manual-checkin').disabled = !state.people.length || !events.length;
+  $('#start-scanner').disabled = !state.people.length || !events.length;
 }
 
+function renderTicket(container, ticket) {
+  const visits = Number(ticket.visits) || 0;
+  const courtesy = ticket.ticketType === 'courtesy';
+  const required = requiredVisits(ticket);
+  const completed = Math.min(visits, required);
+  const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
+  const renderId = ++ticketRenderNumber;
+  const statusStamps = Array.from({ length: required }, (_, index) => `<span class="reference-stamp reference-stamp-${index + 1} ${index < completed ? 'active' : ''}" aria-label="Visita ${index + 1}${index < completed ? ' registrada' : ' pendiente'}"></span>`).join('');
+  const description = courtesy
+    ? `Entrada de cortesía: ${visits} de 3 miércoles utilizados.`
+    : benefits.length
+      ? `Tienes ${benefits.length} ${benefits.length === 1 ? 'beneficio disponible' : 'beneficios disponibles'} para usar en los eventos indicados.`
+      : `${visits} ${visits === 1 ? 'asistencia registrada' : 'asistencias registradas'} · Completa ${BENEFIT_VISITS} para recibir el QR del siguiente evento.`;
+  const benefitMarkup = benefits.map((benefit, index) => `<div class="ticket-qr-item reward-qr"><span>BENEFICIO · ${escapeHtml(benefit.eventName)}</span><div id="benefit-qr-${renderId}-${index}" class="qr" aria-label="QR de beneficio para ${escapeHtml(benefit.eventName)}"></div></div>`).join('');
+  container.innerHTML = `<article class="ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}"><div class="ticket-art"><img src="${courtesy ? 'boleta%201.jpeg' : 'Boleta%202.jpeg'}" alt="Boleta ${ticketLabel(ticket)} Vive el Arte" />${statusStamps}</div><section class="ticket-personal"><div><p class="ticket-label">BOLETA VIRTUAL · ${ticketLabel(ticket).toUpperCase()}</p><p class="ticket-person">${escapeHtml(ticket.name)}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${ticket.id.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${description}</p></div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div id="ticket-qr-${renderId}" class="qr" aria-label="Código QR de ${escapeHtml(ticket.name)}"></div></div>${benefitMarkup}</div></section></article>`;
+  new QRCode($(`#ticket-qr-${renderId}`), { text: JSON.stringify({ app: APP_NAME, ticketToken: ticket.id }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+  benefits.forEach((benefit, index) => {
+    new QRCode($(`#benefit-qr-${renderId}-${index}`), { text: JSON.stringify({ app: APP_NAME, type: 'benefit', benefitToken: benefit.token }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+  });
+}
 function showTicket(personId) {
   const person = state.people.find((item) => item.id === personId);
-  if (!person) return;
-  showTicketData(person, countVisits(person.id));
-}
-function showTicketData(person, visits, sharedBenefit = null) {
-  const reward = isCourtesy(person) ? null : (sharedBenefit || availableBenefit(person.id));
-  displayedTicket = { id: person.id, name: person.name, ticketType: isCourtesy(person) ? 'courtesy' : 'regular', visits, reward };
-  const courtesy = isCourtesy(person);
-  const requiredVisits = courtesy ? 3 : BENEFIT_VISITS;
-  const completed = Math.min(visits, requiredVisits);
-  const statusStamps = Array.from({ length: requiredVisits }, (_, index) => `<span class="reference-stamp reference-stamp-${index + 1} ${index < completed ? 'active' : ''}" aria-label="Visita ${index + 1}${index < completed ? ' registrada' : ' pendiente'}"></span>`).join('');
-  const benefit = '';
-  const image = courtesy ? 'boleta%201.jpeg' : 'Boleta%202.jpeg';
-  const description = courtesy ? `Entrada de cortesía: ${visits} de 3 miércoles utilizados.` : (reward ? `Beneficio disponible para ${escapeHtml(reward.eventName)}. Usa el QR rojo en el próximo evento.` : `${visits} ${visits === 1 ? 'asistencia registrada' : 'asistencias registradas'} · Completa ${BENEFIT_VISITS} para recibir el QR del siguiente evento.`);
-  const rewardMarkup = reward ? `<div class="ticket-qr-item reward-qr"><span>BENEFICIO · ${escapeHtml(reward.eventName)}</span><div id="benefit-qr" class="qr" aria-label="QR de beneficio para ${escapeHtml(reward.eventName)}"></div></div>` : '';
-  $('#ticket-content').innerHTML = `<article class="ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}"><div class="ticket-art"><img src="${image}" alt="Boleta ${ticketLabel(person)} Vive el Arte" />${statusStamps}${benefit}</div><section class="ticket-personal"><div><p class="ticket-label">BOLETA VIRTUAL · ${ticketLabel(person).toUpperCase()}</p><p class="ticket-person">${escapeHtml(person.name)}</p><span class="ticket-code">CODIGO DE COMUNIDAD: ${person.id.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${description}</p></div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div id="ticket-qr" class="qr" aria-label="Codigo QR de ${escapeHtml(person.name)}"></div></div>${rewardMarkup}</div></section></article>`;
-  const payload = JSON.stringify({ app: 'live-vive-el-arte', personId: person.id });
-  new QRCode($('#ticket-qr'), { text: payload, width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
-  if (reward) new QRCode($('#benefit-qr'), { text: JSON.stringify({ app: 'live-vive-el-arte', type: 'benefit', benefitId: reward.id, personId: person.id, eventId: reward.eventId }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+  const ticket = person && ticketForPerson(person);
+  if (!ticket) return setFeedback('La boleta todavía no está disponible.', true);
+  displayedTicket = ticket;
+  renderTicket($('#ticket-content'), ticket);
   if (!$('#ticket-modal').open) $('#ticket-modal').showModal();
 }
 function shareTicket() {
   if (!displayedTicket) return;
-  if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
-    alert('Publica primero la pagina en GitHub Pages para que la persona pueda abrir su boleta desde WhatsApp.');
-    return;
-  }
   const link = new URL(window.location.href);
-  link.searchParams.set('boleta', JSON.stringify(displayedTicket));
+  link.search = '';
+  link.hash = '';
+  link.searchParams.set('boleta', displayedTicket.id);
   const type = displayedTicket.ticketType === 'courtesy' ? 'de cortesía' : 'regular';
-  const message = `Hola ${displayedTicket.name}. Esta es tu boleta ${type} de Live! Vive el Arte. Muestra este QR al llegar al evento:\n${link.toString()}`;
+  const message = `Hola ${displayedTicket.name}. Esta es tu boleta ${type} de Live! Vive el Arte. Muéstrala al llegar al evento:\n${link}`;
   window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
 }
-function openSharedTicket() {
-  const source = new URLSearchParams(window.location.search).get('boleta');
-  if (!source) return;
-  try {
-    const ticket = JSON.parse(source);
-    if (!ticket.id || !ticket.name || !Number.isInteger(ticket.visits)) throw new Error();
-    showTicketData({ id: ticket.id, name: ticket.name, ticketType: ticket.ticketType }, ticket.visits, ticket.reward);
-  } catch (_) { /* Ignore invalid shared ticket links. */ }
-}
-function setFeedback(message, error = false) { const feedback = $('#checkin-feedback'); feedback.textContent = message; feedback.classList.toggle('error', error); }
-function registerCheckin(personId) {
-  const person = state.people.find((item) => item.id === personId);
-  const event = currentEvent();
-  if (!person || !event) return setFeedback('Selecciona una persona y un evento.', true);
-  if (state.checkins.some((item) => item.personId === personId && item.eventId === event.id)) return setFeedback(`${person.name} ya tiene un ingreso registrado para este evento.`, true);
-  if (isCourtesy(person) && countVisits(person.id) >= 3) return setFeedback(`La boleta de cortesía de ${person.name} ya utilizó sus 3 ingresos.`, true);
-  state.checkins.push({ id: createId(), personId, eventId: event.id, checkedAt: new Date().toISOString() });
-  grantPendingBenefits();
-  saveState(); render(); setFeedback(`Ingreso registrado: ${person.name}. Ahora tiene ${countVisits(person.id)} visitas.`);
-}
-function redeemBenefit(benefitId) {
-  const benefit = state.benefits.find((item) => item.id === benefitId);
-  const event = currentEvent();
-  if (!benefit || benefit.usedAt) return setFeedback('Este QR de beneficio ya fue utilizado o no es válido.', true);
-  if (!event || benefit.eventId !== event.id) return setFeedback(`Este beneficio es válido para ${benefit.eventName}.`, true);
-  const person = state.people.find((item) => item.id === benefit.personId);
-  if (!person) return setFeedback('No se encontró la persona de este beneficio.', true);
-  if (state.checkins.some((item) => item.personId === person.id && item.eventId === event.id)) return setFeedback(`${person.name} ya tiene un ingreso en este evento.`, true);
-  state.checkins.push({ id: createId(), personId: person.id, eventId: event.id, type: 'benefit', checkedAt: new Date().toISOString() });
-  benefit.usedAt = new Date().toISOString();
-  grantPendingBenefits(); saveState(); render(); setFeedback(`Beneficio canjeado: ingreso registrado para ${person.name}.`);
+function listenToPublicTicket() {
+  if (!publicTicketToken) return;
+  if (!/^[A-Za-z0-9_-]{43}$/.test(publicTicketToken)) {
+    $('#public-ticket-status').textContent = 'El enlace de esta boleta no es válido.';
+    return;
+  }
+  $('#public-ticket-status').textContent = 'Cargando tu boleta...';
+  onSnapshot(doc(db, 'tickets', publicTicketToken), (snapshot) => {
+    if (!snapshot.exists()) {
+      $('#public-ticket-status').textContent = 'Esta boleta no existe o ya no está disponible.';
+      $('#public-ticket-content').innerHTML = '';
+      return;
+    }
+    $('#public-ticket-status').textContent = 'Tu boleta se actualiza en tiempo real.';
+    renderTicket($('#public-ticket-content'), { id: snapshot.id, ...snapshot.data() });
+  }, () => {
+    $('#public-ticket-status').textContent = 'No fue posible abrir esta boleta.';
+  });
 }
 
-function openModal(id) { $(`#${id}`).showModal(); }
-document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', () => openModal(button.dataset.open)));
+async function createPerson(event) {
+  requireAdmin();
+  const form = event.currentTarget;
+  const person = {
+    name: $('#person-name').value.trim(),
+    ticketType: $('#person-ticket-type').value,
+    email: $('#person-email').value.trim(),
+    phone: $('#person-phone').value.trim(),
+    note: $('#person-note').value.trim(),
+    createdAt: serverTimestamp(),
+  };
+  const personRef = doc(collection(db, 'people'));
+  const ticketToken = randomToken();
+  const batch = writeBatch(db);
+  batch.set(personRef, { ...person, ticketToken });
+  batch.set(doc(db, 'tickets', ticketToken), { name: person.name, ticketType: person.ticketType, visits: 0, benefits: [] });
+  await batch.commit();
+  form.reset();
+  $('#person-form').close();
+  displayedTicket = { id: ticketToken, name: person.name, ticketType: person.ticketType, visits: 0, benefits: [] };
+  renderTicket($('#ticket-content'), displayedTicket);
+  $('#ticket-modal').showModal();
+}
+
+async function addBenefit(transaction, person, ticket, event, visitNumber, events = state.events) {
+  const nextEvent = nextEventAfter(event, events);
+  const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
+  const ref = benefitRef(person.id, visitNumber);
+  const existingBenefit = await transaction.get(ref);
+  if (existingBenefit.exists()) {
+    const benefit = existingBenefit.data();
+    if (!nextEvent || benefit.eventId) return benefits;
+    transaction.update(ref, { eventId: nextEvent.id, eventName: nextEvent.name, pending: false });
+    return benefits.some((item) => item.token === benefit.token) ? benefits : [...benefits, { token: benefit.token, eventName: nextEvent.name }];
+  }
+  const token = randomToken();
+  transaction.set(ref, {
+    personId: person.id,
+    ticketToken: person.ticketToken,
+    qualifyingEventId: event.id,
+    eventId: nextEvent?.id || null,
+    eventName: nextEvent?.name || null,
+    visitNumber,
+    token,
+    pending: !nextEvent,
+    earnedAt: serverTimestamp(),
+    usedAt: null,
+  });
+  return nextEvent ? [...benefits, { token, eventName: nextEvent.name }] : benefits;
+}
+
+async function registerCheckin(personId) {
+  try {
+    requireAdmin();
+    const person = state.people.find((item) => item.id === personId);
+    const event = currentEvent();
+    if (!person || !event) userError('Selecciona una persona y un evento.');
+    await runTransaction(db, async (transaction) => {
+      const [existingCheckin, ticketSnapshot] = await Promise.all([
+        transaction.get(checkinRef(event.id, person.id)),
+        transaction.get(doc(db, 'tickets', person.ticketToken)),
+      ]);
+      if (existingCheckin.exists()) userError(`${person.name} ya tiene un ingreso registrado para este evento.`);
+      if (!ticketSnapshot.exists()) userError('No se encontró la boleta de esta persona.');
+      const ticket = ticketSnapshot.data();
+      const visits = Number(ticket.visits) || 0;
+      if (isCourtesy(person) && visits >= 3) userError(`La boleta de cortesía de ${person.name} ya utilizó sus 3 ingresos.`);
+      const newVisits = visits + 1;
+      const updates = { visits: newVisits };
+      if (!isCourtesy(person) && newVisits % BENEFIT_VISITS === 0) updates.benefits = await addBenefit(transaction, person, ticket, event, newVisits / BENEFIT_VISITS);
+      transaction.set(checkinRef(event.id, person.id), { personId: person.id, eventId: event.id, type: 'regular', checkedAt: serverTimestamp() });
+      transaction.update(doc(db, 'tickets', person.ticketToken), updates);
+    });
+    setFeedback(`Ingreso registrado: ${person.name}.`);
+  } catch (error) { reportOperationError(error); }
+}
+
+async function redeemBenefit(benefitToken) {
+  try {
+    requireAdmin();
+    const matches = await getDocs(query(collection(db, 'benefits'), where('token', '==', benefitToken), limit(1)));
+    if (matches.empty) userError('Este QR de beneficio no es válido.');
+    const benefitSnapshot = matches.docs[0];
+    const benefit = { id: benefitSnapshot.id, ...benefitSnapshot.data() };
+    const event = currentEvent();
+    if (!event || benefit.eventId !== event.id) userError(`Este beneficio es válido para ${benefit.eventName}.`);
+    const person = state.people.find((item) => item.id === benefit.personId);
+    if (!person) userError('No se encontró la persona de este beneficio.');
+    await runTransaction(db, async (transaction) => {
+      const [freshBenefit, existingCheckin, ticketSnapshot] = await Promise.all([
+        transaction.get(doc(db, 'benefits', benefit.id)),
+        transaction.get(checkinRef(event.id, person.id)),
+        transaction.get(doc(db, 'tickets', person.ticketToken)),
+      ]);
+      if (!freshBenefit.exists() || freshBenefit.data().usedAt) userError('Este QR de beneficio ya fue utilizado.');
+      if (existingCheckin.exists()) userError(`${person.name} ya tiene un ingreso en este evento.`);
+      if (!ticketSnapshot.exists()) userError('No se encontró la boleta de este beneficio.');
+      const ticket = ticketSnapshot.data();
+      const newVisits = (Number(ticket.visits) || 0) + 1;
+      const benefits = (Array.isArray(ticket.benefits) ? ticket.benefits : []).filter((item) => item.token !== benefit.token);
+      const updates = { visits: newVisits, benefits };
+      if (newVisits % BENEFIT_VISITS === 0) updates.benefits = await addBenefit(transaction, person, { ...ticket, benefits }, event, newVisits / BENEFIT_VISITS);
+      transaction.set(checkinRef(event.id, person.id), { personId: person.id, eventId: event.id, type: 'benefit', checkedAt: serverTimestamp() });
+      transaction.update(doc(db, 'benefits', benefit.id), { usedAt: serverTimestamp() });
+      transaction.update(doc(db, 'tickets', person.ticketToken), updates);
+    });
+    setFeedback(`Beneficio canjeado: ingreso registrado para ${person.name}.`);
+  } catch (error) { reportOperationError(error); }
+}
+
+async function deletePerson(personId) {
+  const person = state.people.find((item) => item.id === personId);
+  if (!person || !confirm(`Eliminar a ${person.name}, su boleta y sus asistencias?`)) return;
+  try {
+    requireAdmin();
+    const refs = [doc(db, 'people', person.id), doc(db, 'tickets', person.ticketToken)];
+    state.checkins.filter((item) => item.personId === person.id).forEach((item) => refs.push(doc(db, 'checkins', item.id)));
+    state.benefits.filter((item) => item.personId === person.id).forEach((item) => refs.push(doc(db, 'benefits', item.id)));
+    for (let start = 0; start < refs.length; start += 400) {
+      const batch = writeBatch(db);
+      refs.slice(start, start + 400).forEach((ref) => batch.delete(ref));
+      await batch.commit();
+    }
+  } catch (error) { reportOperationError(error); }
+}
+
+async function deleteEvent(eventId) {
+  const event = state.events.find((item) => item.id === eventId);
+  if (!event || !confirm(`Eliminar el evento "${event.name}"?`)) return;
+  if (state.checkins.some((item) => item.eventId === eventId) || state.benefits.some((item) => item.eventId === eventId)) {
+    return setFeedback('No se puede eliminar un evento que ya tiene ingresos o beneficios asociados.', true);
+  }
+  try { requireAdmin(); await deleteDoc(doc(db, 'events', eventId)); } catch (error) { reportOperationError(error); }
+}
+
+async function createEvent(event) {
+  requireAdmin();
+  const form = event.currentTarget;
+  const eventRef = doc(collection(db, 'events'));
+  const newEvent = {
+    name: $('#event-name').value.trim(),
+    date: $('#event-date').value,
+    description: $('#event-description').value.trim(),
+    createdAt: serverTimestamp(),
+  };
+  await setDoc(eventRef, newEvent);
+  await resolvePendingBenefits({ id: eventRef.id, ...newEvent });
+  form.reset();
+  $('#event-date').value = localDate();
+  $('#event-form').close();
+}
+
+async function resolvePendingBenefits(newEvent) {
+  const events = [...state.events.filter((event) => event.id !== newEvent.id), newEvent];
+  const pending = await getDocs(query(collection(db, 'benefits'), where('eventId', '==', null)));
+  for (const pendingSnapshot of pending.docs) {
+    const benefit = { id: pendingSnapshot.id, ...pendingSnapshot.data() };
+    const qualifyingEvent = events.find((item) => item.id === benefit.qualifyingEventId);
+    const nextEvent = qualifyingEvent && nextEventAfter(qualifyingEvent, events);
+    if (!nextEvent) continue;
+    await runTransaction(db, async (transaction) => {
+      const [freshBenefit, ticketSnapshot] = await Promise.all([
+        transaction.get(doc(db, 'benefits', benefit.id)),
+        transaction.get(doc(db, 'tickets', benefit.ticketToken)),
+      ]);
+      if (!freshBenefit.exists() || freshBenefit.data().eventId || !ticketSnapshot.exists()) return;
+      const ticket = ticketSnapshot.data();
+      const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
+      transaction.update(doc(db, 'benefits', benefit.id), { eventId: nextEvent.id, eventName: nextEvent.name, pending: false });
+      if (!benefits.some((item) => item.token === benefit.token)) {
+        transaction.update(doc(db, 'tickets', benefit.ticketToken), { benefits: [...benefits, { token: benefit.token, eventName: nextEvent.name }] });
+      }
+    });
+  }
+}
+
+document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', () => {
+  if (isAdmin) $(`#${button.dataset.open}`).showModal();
+}));
 $('#person-search').addEventListener('input', renderPeople);
 $('#people-list').addEventListener('click', (event) => {
-  const ticketButton = event.target.closest('[data-ticket]'); const deleteButton = event.target.closest('[data-delete-person]');
+  const ticketButton = event.target.closest('[data-ticket]');
+  const deleteButton = event.target.closest('[data-delete-person]');
   if (ticketButton) showTicket(ticketButton.dataset.ticket);
-  if (deleteButton) {
-    const person = state.people.find((item) => item.id === deleteButton.dataset.deletePerson);
-    if (person && confirm(`Eliminar a ${person.name} y sus asistencias?`)) { state.people = state.people.filter((item) => item.id !== person.id); state.checkins = state.checkins.filter((item) => item.personId !== person.id); state.benefits = state.benefits.filter((item) => item.personId !== person.id); saveState(); render(); }
-  }
+  if (deleteButton) deletePerson(deleteButton.dataset.deletePerson);
 });
 $('#event-list').addEventListener('click', (event) => {
-  const button = event.target.closest('[data-delete-event]'); if (!button) return;
-  const selected = state.events.find((item) => item.id === button.dataset.deleteEvent);
-  if (selected && confirm(`Eliminar el evento "${selected.name}"? Sus ingresos tambien se eliminaran.`)) { state.events = state.events.filter((item) => item.id !== selected.id); state.checkins = state.checkins.filter((item) => item.eventId !== selected.id); state.benefits = state.benefits.filter((item) => item.eventId !== selected.id); saveState(); render(); }
+  const button = event.target.closest('[data-delete-event]');
+  if (button) deleteEvent(button.dataset.deleteEvent);
 });
 $('#new-person-form').addEventListener('submit', (event) => {
-  event.preventDefault(); const form = event.currentTarget;
-  if (event.submitter?.value === 'cancel') { $('#person-form').close(); return; }
-  state.people.push({ id: createId(), name: $('#person-name').value.trim(), ticketType: $('#person-ticket-type').value, email: $('#person-email').value.trim(), phone: $('#person-phone').value.trim(), note: $('#person-note').value.trim(), createdAt: new Date().toISOString() });
-  saveState(); form.reset(); $('#person-form').close(); render(); showTicket(state.people.at(-1).id);
+  event.preventDefault();
+  if (event.submitter?.value === 'cancel') return $('#person-form').close();
+  createPerson(event).catch(reportOperationError);
 });
 $('#new-event-form').addEventListener('submit', (event) => {
-  event.preventDefault(); const form = event.currentTarget;
-  if (event.submitter?.value === 'cancel') { $('#event-form').close(); return; }
-  state.events.push({ id: createId(), name: $('#event-name').value.trim(), date: $('#event-date').value, description: $('#event-description').value.trim() });
-  grantPendingBenefits(); saveState(); form.reset(); $('#event-form').close(); render();
+  event.preventDefault();
+  if (event.submitter?.value === 'cancel') return $('#event-form').close();
+  createEvent(event).catch(reportOperationError);
 });
 $('#manual-checkin').addEventListener('click', () => registerCheckin($('#manual-person').value));
 $('#close-ticket').addEventListener('click', () => $('#ticket-modal').close());
 $('#share-ticket').addEventListener('click', shareTicket);
+$('#sign-in').addEventListener('click', async () => {
+  try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch (error) { console.error(error); $('#auth-status').textContent = 'No se pudo iniciar sesión con Google.'; }
+});
+$('#sign-out').addEventListener('click', () => signOut(auth));
 
 async function startScanner() {
-  if (!window.Html5Qrcode) return setFeedback('No se pudo cargar el lector QR. Revisa tu conexion.', true);
-  $('#qr-reader').hidden = false; $('#start-scanner').hidden = true; $('#stop-scanner').hidden = false;
+  if (!window.Html5Qrcode) return setFeedback('No se pudo cargar el lector QR. Revisa tu conexión.', true);
+  $('#qr-reader').hidden = false;
+  $('#start-scanner').hidden = true;
+  $('#stop-scanner').hidden = false;
   scanner = new Html5Qrcode('qr-reader');
   try {
-    await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, (decoded) => {
-      try { const payload = JSON.parse(decoded); if (payload.app !== 'live-vive-el-arte') throw new Error(); if (payload.type === 'benefit') redeemBenefit(payload.benefitId); else registerCheckin(payload.personId); stopScanner(); } catch (_) { setFeedback('Este QR no pertenece a una boleta Live!', true); }
+    await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decoded) => {
+      try {
+        const payload = JSON.parse(decoded);
+        if (payload.app !== APP_NAME) throw new Error();
+        if (payload.type === 'benefit') await redeemBenefit(payload.benefitToken);
+        else {
+          const person = state.people.find((item) => item.ticketToken === payload.ticketToken);
+          if (!person) userError('No se encontró una persona para esta boleta.');
+          await registerCheckin(person.id);
+        }
+        stopScanner();
+      } catch (error) { reportOperationError(error); }
     });
-  } catch (_) { setFeedback('No se pudo abrir la camara. Autoriza el permiso o registra el ingreso manualmente.', true); stopScanner(); }
+  } catch (error) {
+    console.error(error);
+    setFeedback('No se pudo abrir la cámara. Autoriza el permiso o registra el ingreso manualmente.', true);
+    stopScanner();
+  }
 }
 async function stopScanner() {
-  if (scanner) { try { await scanner.stop(); } catch (_) { /* Scanner was not started. */ } scanner.clear(); scanner = null; }
-  $('#qr-reader').hidden = true; $('#start-scanner').hidden = false; $('#stop-scanner').hidden = true;
+  if (scanner) {
+    try { await scanner.stop(); } catch (_) { /* The scanner did not start completely. */ }
+    scanner.clear();
+    scanner = null;
+  }
+  $('#qr-reader').hidden = true;
+  $('#start-scanner').hidden = false;
+  $('#stop-scanner').hidden = true;
 }
-$('#start-scanner').addEventListener('click', startScanner); $('#stop-scanner').addEventListener('click', stopScanner);
-$('#export-data').addEventListener('click', () => {
-  const file = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }); const link = document.createElement('a');
-  link.href = URL.createObjectURL(file); link.download = `live-respaldo-${localDate()}.json`; link.click(); URL.revokeObjectURL(link.href);
-});
-$('#import-data').addEventListener('change', (event) => {
-  const [file] = event.target.files; if (!file) return;
-  const reader = new FileReader(); reader.onload = () => { try { const imported = JSON.parse(reader.result); if (!Array.isArray(imported.people) || !Array.isArray(imported.events) || !Array.isArray(imported.checkins)) throw new Error(); state.people = imported.people; state.events = imported.events; state.checkins = imported.checkins; state.benefits = Array.isArray(imported.benefits) ? imported.benefits : []; grantPendingBenefits(); saveState(); render(); setFeedback('Datos importados correctamente.'); } catch (_) { alert('El archivo no tiene un formato de respaldo valido.'); } event.target.value = ''; }; reader.readAsText(file);
-});
+$('#start-scanner').addEventListener('click', startScanner);
+$('#stop-scanner').addEventListener('click', stopScanner);
 
 $('#event-date').value = localDate();
-if (grantPendingBenefits()) saveState();
-render();
-openSharedTicket();
+listenToPublicTicket();
+onAuthStateChanged(auth, async (user) => {
+  stopOperationalListeners();
+  isAdmin = false;
+  if (user) {
+    try {
+      const membership = await getDoc(doc(db, 'admins', user.uid));
+      isAdmin = auth.currentUser?.uid === user.uid && membership.exists();
+    } catch (error) { console.error('No se pudo verificar la membresía de administrador.', error); }
+  }
+  if (auth.currentUser?.uid !== user?.uid) return;
+  updateAccessUi(user);
+  if (isAdmin) listenToOperationalData();
+});

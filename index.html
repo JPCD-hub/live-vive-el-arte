@@ -13,14 +13,21 @@
         <span class="brand-live">Live<span>!</span></span>
         <span>Podcast · Cafe · Bar</span>
       </a>
-      <nav aria-label="Navegacion principal">
+      <nav id="admin-nav" aria-label="Navegacion principal" hidden>
         <a href="#personas">Personas</a>
         <a href="#ingresos">Ingresos</a>
         <a href="#eventos">Eventos</a>
       </nav>
+      <div class="auth-actions"><span id="auth-status" class="auth-status">Verificando acceso...</span><button id="sign-in" class="small-button" type="button" hidden>Entrar como admin</button><button id="sign-out" class="small-button" type="button" hidden>Salir</button></div>
     </header>
 
-    <main id="inicio">
+    <section id="public-ticket-view" class="public-ticket" hidden>
+      <div class="public-ticket-heading"><p class="eyebrow">LIVE! VIVE EL ARTE</p><h1>Tu boleta</h1><p id="public-ticket-status" class="muted" aria-live="polite"></p></div>
+      <div id="public-ticket-content"></div>
+    </section>
+    <section id="public-message" class="public-message" hidden><p class="eyebrow">LIVE! VIVE EL ARTE</p><h1>Tu boleta, siempre contigo.</h1><p>Abre el enlace personal que recibiste por WhatsApp para consultar tu boleta y sus asistencias en tiempo real.</p></section>
+
+    <main id="admin-app" hidden>
       <section class="hero">
         <div>
           <p class="eyebrow">VIVE EL <i>Arte</i></p>
@@ -95,11 +102,7 @@
       </section>
 
       <section class="data-section">
-        <div><p class="eyebrow">RESPALDO</p><h2>Tus datos, bajo control</h2><p>La base se guarda en este navegador. Exporta una copia antes de usar otro equipo.</p></div>
-        <div class="data-actions">
-          <button id="export-data" class="button button-outline" type="button">Exportar datos</button>
-          <label class="button button-outline import-label">Importar datos<input id="import-data" type="file" accept="application/json" hidden /></label>
-        </div>
+        <div><p class="eyebrow">BASE EN TIEMPO REAL</p><h2>Datos compartidos y protegidos</h2><p>La operación se guarda en Firestore. Solo las cuentas incluidas en la colección de administradores pueden consultar o modificar estos datos.</p></div>
       </section>
     </main>
 
@@ -135,6 +138,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <script src="app.js?v=3"></script>
+    <script type="module" src="app.js?v=4"></script>
   </body>
 </html>
