@@ -109,6 +109,7 @@ footer { padding:35px 32px; color:var(--cream); background:var(--green-dark); te
 .ticket-regular .ticket-codes { margin-top:24px; }
 @media (max-width:700px) { .ticket-codes { justify-content:end; }.ticket-qr-item .qr,.reward-qr .qr { width:90px; min-height:90px; }.ticket-regular .ticket-codes { margin-top:0; } }
 
-.hero-card { width:min(100%,300px); justify-self:end; }
+.hero-card { width:min(100%,340px); justify-self:end; overflow:visible; padding:7px; background:#f7f0e4; box-shadow:13px 15px 0 #d8cdb9; }
 .hero-card img { aspect-ratio:3 / 4; object-fit:cover; }
-@media (max-width:700px) { .hero-card { justify-self:start; } }
+.hero-card > span { right:-8px; bottom:-13px; z-index:1; }
+@media (max-width:700px) { .hero-card { justify-self:start; margin-bottom:14px; } }
