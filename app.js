@@ -1,10 +1,9 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
   getAuth,
-  GoogleAuthProvider,
-  getRedirectResult,
   onAuthStateChanged,
-  signInWithRedirect,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
   signOut,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
@@ -83,9 +82,9 @@ function reportOperationError(error) {
 }
 function authErrorMessage(error) {
   const messages = {
-    'auth/unauthorized-domain': 'Firebase no autorizó este dominio. Agrega jpcd-hub.github.io en Dominios autorizados.',
-    'auth/operation-not-allowed': 'El acceso con Google no está habilitado en Firebase Authentication.',
-    'auth/popup-blocked': 'El navegador bloqueó la ventana de acceso. Intenta nuevamente.',
+    'auth/email-already-in-use': 'Este correo ya tiene una cuenta. Usa Entrar.',
+    'auth/invalid-credential': 'Correo o contraseña incorrectos.',
+    'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
   };
   return messages[error.code] || `No se pudo iniciar sesión (${error.code || 'error desconocido'}).`;
 }
@@ -99,7 +98,7 @@ function updateAccessUi(user = auth.currentUser) {
   $('#auth-status').textContent = isAdmin
     ? `Administrando como ${user.displayName || user.email}`
     : user
-      ? 'Esta cuenta no tiene acceso de administración.'
+      ? `Esta cuenta aún no tiene acceso de administración. ID: ${user.uid}`
       : authIssue || 'Consulta tu boleta con su enlace personal.';
   $('#public-ticket-view').hidden = !hasTicket;
   $('#public-message').hidden = hasTicket || isAdmin;
@@ -434,8 +433,22 @@ $('#new-event-form').addEventListener('submit', (event) => {
 $('#manual-checkin').addEventListener('click', () => registerCheckin($('#manual-person').value));
 $('#close-ticket').addEventListener('click', () => $('#ticket-modal').close());
 $('#share-ticket').addEventListener('click', shareTicket);
-$('#sign-in').addEventListener('click', async () => {
-  try { await signInWithRedirect(auth, new GoogleAuthProvider()); } catch (error) { console.error(error); authIssue = authErrorMessage(error); updateAccessUi(); }
+$('#sign-in').addEventListener('click', () => $('#auth-form').showModal());
+$('#admin-auth-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (event.submitter?.value === 'cancel') return $('#auth-form').close();
+  const email = $('#admin-email').value.trim();
+  const password = $('#admin-password').value;
+  try {
+    if (event.submitter?.value === 'create') await createUserWithEmailAndPassword(auth, email, password);
+    else await signInWithEmailAndPassword(auth, email, password);
+    $('#auth-feedback').textContent = '';
+    $('#auth-form').close();
+  } catch (error) {
+    console.error(error);
+    $('#auth-feedback').textContent = authErrorMessage(error);
+    $('#auth-feedback').classList.add('error');
+  }
 });
 $('#sign-out').addEventListener('click', () => signOut(auth));
 
@@ -480,7 +493,6 @@ $('#stop-scanner').addEventListener('click', stopScanner);
 
 $('#event-date').value = localDate();
 listenToPublicTicket();
-getRedirectResult(auth).catch((error) => { console.error(error); authIssue = authErrorMessage(error); updateAccessUi(); });
 onAuthStateChanged(auth, async (user) => {
   stopOperationalListeners();
   isAdmin = false;

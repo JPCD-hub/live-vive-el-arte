@@ -18,7 +18,7 @@
         <a href="#ingresos">Ingresos</a>
         <a href="#eventos">Eventos</a>
       </nav>
-      <div class="auth-actions"><span id="auth-status" class="auth-status">Verificando acceso...</span><button id="sign-in" class="button button-outline" type="button" hidden>Entrar como admin</button><button id="sign-out" class="small-button" type="button" hidden>Salir</button></div>
+      <div class="auth-actions"><span id="auth-status" class="auth-status">Verificando acceso...</span><button id="sign-in" class="button button-outline" type="button" hidden>Acceso admin</button><button id="sign-out" class="small-button" type="button" hidden>Salir</button></div>
     </header>
 
     <section id="public-ticket-view" class="public-ticket" hidden>
@@ -136,8 +136,19 @@
       <div class="ticket-actions"><button id="share-ticket" class="button button-primary" type="button">Enviar por WhatsApp</button></div>
     </dialog>
 
+    <dialog id="auth-form" class="modal form-modal">
+      <form id="admin-auth-form" method="dialog">
+        <div class="modal-heading"><div><p class="eyebrow">ACCESO PROTEGIDO</p><h2>Administración</h2></div><button class="icon-button" value="cancel" aria-label="Cerrar">×</button></div>
+        <p class="auth-help">Crea una cuenta o inicia sesión. Solo las cuentas autorizadas por Live! podrán administrar eventos, QR y asistencias.</p>
+        <label>Correo electrónico<input id="admin-email" type="email" required autocomplete="email" /></label>
+        <label>Contraseña<input id="admin-password" type="password" required minlength="6" autocomplete="current-password" /></label>
+        <p id="auth-feedback" class="feedback" aria-live="polite"></p>
+        <div class="form-actions"><button class="button button-outline" value="cancel">Cancelar</button><button class="button button-outline" value="create">Crear cuenta</button><button class="button button-primary" value="signin">Entrar</button></div>
+      </form>
+    </dialog>
+
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <script type="module" src="app.js?v=6"></script>
+    <script type="module" src="app.js?v=7"></script>
   </body>
 </html>
