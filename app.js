@@ -2,8 +2,9 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth,
   GoogleAuthProvider,
+  getRedirectResult,
   onAuthStateChanged,
-  signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
@@ -78,6 +79,14 @@ function requireAdmin() {
 function reportOperationError(error) {
   console.error(error);
   setFeedback(error instanceof UserMessageError ? error.message : 'No se pudo guardar el cambio. Revisa tu conexión y permisos.', true);
+}
+function authErrorMessage(error) {
+  const messages = {
+    'auth/unauthorized-domain': 'Firebase no autorizó este dominio. Agrega jpcd-hub.github.io en Dominios autorizados.',
+    'auth/operation-not-allowed': 'El acceso con Google no está habilitado en Firebase Authentication.',
+    'auth/popup-blocked': 'El navegador bloqueó la ventana de acceso. Intenta nuevamente.',
+  };
+  return messages[error.code] || `No se pudo iniciar sesión (${error.code || 'error desconocido'}).`;
 }
 
 function updateAccessUi(user = auth.currentUser) {
@@ -425,7 +434,7 @@ $('#manual-checkin').addEventListener('click', () => registerCheckin($('#manual-
 $('#close-ticket').addEventListener('click', () => $('#ticket-modal').close());
 $('#share-ticket').addEventListener('click', shareTicket);
 $('#sign-in').addEventListener('click', async () => {
-  try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch (error) { console.error(error); $('#auth-status').textContent = 'No se pudo iniciar sesión con Google.'; }
+  try { await signInWithRedirect(auth, new GoogleAuthProvider()); } catch (error) { console.error(error); $('#auth-status').textContent = authErrorMessage(error); }
 });
 $('#sign-out').addEventListener('click', () => signOut(auth));
 
@@ -470,6 +479,7 @@ $('#stop-scanner').addEventListener('click', stopScanner);
 
 $('#event-date').value = localDate();
 listenToPublicTicket();
+getRedirectResult(auth).catch((error) => { console.error(error); $('#auth-status').textContent = authErrorMessage(error); });
 onAuthStateChanged(auth, async (user) => {
   stopOperationalListeners();
   isAdmin = false;
