@@ -1,7 +1,7 @@
 :root { --green:#003c2d; --green-dark:#00271e; --red:#d41918; --cream:#f4eddf; --ink:#142019; --line:#cfc4af; --paper:#fcf7ed; }
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
-body { margin:0; color:var(--ink); background:var(--paper); font-family:Arial, Helvetica, sans-serif; }
+body { margin:0; overflow-x:hidden; color:var(--ink); background:var(--paper); font-family:Arial, Helvetica, sans-serif; }
 body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.18; z-index:2; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E"); }
 button,input,select,textarea { font:inherit; } button { cursor:pointer; } a { color:inherit; }
 .topbar { max-width:1200px; margin:auto; padding:22px 32px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); }
@@ -112,4 +112,4 @@ footer { padding:35px 32px; color:var(--cream); background:var(--green-dark); te
 .hero-card { width:min(100%,340px); justify-self:end; overflow:visible; padding:7px; background:#f7f0e4; box-shadow:13px 15px 0 #d8cdb9; }
 .hero-card img { aspect-ratio:3 / 4; object-fit:cover; }
 .hero-card > span { right:-8px; bottom:-13px; z-index:1; }
-@media (max-width:700px) { .hero-card { justify-self:start; margin-bottom:14px; } }
+@media (max-width:700px) { .topbar { flex-wrap:wrap; gap:15px; }.topbar nav { display:grid; width:min(350px,100%); grid-template-columns:repeat(3,minmax(0,1fr)); gap:0; }.topbar nav a { text-align:center; }.hero { display:block; }.hero-card { width:min(310px,100%); justify-self:start; margin-bottom:14px; }.hero > div:first-child { width:min(350px,100%); min-width:0; }.hero h1,.hero-copy { width:100%; max-width:100%; overflow-wrap:anywhere; }.ticket-modal { width:374px; max-width:calc(100vw - 16px); }.ticket-regular .ticket-art { width:100%; }.ticket-regular .ticket-personal { grid-template-columns:minmax(0,1fr) 90px; }.ticket-regular .ticket-personal > * { min-width:0; }.ticket-visits { overflow-wrap:anywhere; } }
