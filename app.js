@@ -46,6 +46,7 @@ let operationalUnsubscribers = [];
 let isAdmin = false;
 let ticketRenderNumber = 0;
 let authIssue = '';
+const pendingBenefitSync = new Set();
 
 function localDate() { return new Date().toISOString().slice(0, 10); }
 function escapeHtml(value = '') { const node = document.createElement('div'); node.textContent = value; return node.innerHTML; }
@@ -137,6 +138,22 @@ function render() {
   renderPeople();
   renderEvents();
   renderSelects();
+  syncPendingBenefitsToTickets();
+}
+function syncPendingBenefitsToTickets() {
+  state.benefits.filter((benefit) => !benefit.usedAt && benefit.token && benefit.ticketToken).forEach((benefit) => {
+    const ticket = state.tickets.get(benefit.ticketToken);
+    if (!ticket || (ticket.benefits || []).some((item) => item.token === benefit.token) || pendingBenefitSync.has(benefit.id)) return;
+    pendingBenefitSync.add(benefit.id);
+    runTransaction(db, async (transaction) => {
+      const ticketSnapshot = await transaction.get(doc(db, 'tickets', benefit.ticketToken));
+      if (!ticketSnapshot.exists()) return;
+      const benefits = Array.isArray(ticketSnapshot.data().benefits) ? ticketSnapshot.data().benefits : [];
+      if (!benefits.some((item) => item.token === benefit.token)) {
+        transaction.update(ticketSnapshot.ref, { benefits: [...benefits, { token: benefit.token, eventName: benefit.eventName || 'Próximo evento' }] });
+      }
+    }).catch((error) => console.error('No se pudo sincronizar un beneficio pendiente.', error)).finally(() => pendingBenefitSync.delete(benefit.id));
+  });
 }
 function renderStats() {
   $('#total-people').textContent = state.people.length;
@@ -261,24 +278,28 @@ async function addBenefit(transaction, person, ticket, event, visitNumber, event
   const existingBenefit = await transaction.get(ref);
   if (existingBenefit.exists()) {
     const benefit = existingBenefit.data();
-    if (!nextEvent || benefit.eventId) return benefits;
-    transaction.update(ref, { eventId: nextEvent.id, eventName: nextEvent.name, pending: false });
-    return benefits.some((item) => item.token === benefit.token) ? benefits : [...benefits, { token: benefit.token, eventName: nextEvent.name }];
+    const eventName = nextEvent?.name || benefit.eventName || 'Próximo evento';
+    if (nextEvent && !benefit.eventId) transaction.update(ref, { eventId: nextEvent.id, eventName, pending: false });
+    const publicBenefit = { token: benefit.token, eventName };
+    return benefits.some((item) => item.token === benefit.token)
+      ? benefits.map((item) => item.token === benefit.token ? publicBenefit : item)
+      : [...benefits, publicBenefit];
   }
   const token = randomToken();
+  const eventName = nextEvent?.name || 'Próximo evento';
   transaction.set(ref, {
     personId: person.id,
     ticketToken: person.ticketToken,
     qualifyingEventId: event.id,
     eventId: nextEvent?.id || null,
-    eventName: nextEvent?.name || null,
+    eventName,
     visitNumber,
     token,
     pending: !nextEvent,
     earnedAt: serverTimestamp(),
     usedAt: null,
   });
-  return nextEvent ? [...benefits, { token, eventName: nextEvent.name }] : benefits;
+  return [...benefits, { token, eventName }];
 }
 
 async function registerCheckin(personId) {
@@ -315,7 +336,8 @@ async function redeemBenefit(benefitToken) {
     const benefitSnapshot = matches.docs[0];
     const benefit = { id: benefitSnapshot.id, ...benefitSnapshot.data() };
     const event = currentEvent();
-    if (!event || benefit.eventId !== event.id) userError(`Este beneficio es válido para ${benefit.eventName}.`);
+    if (!event) userError('Selecciona el evento activo para canjear el beneficio.');
+    if (benefit.eventId && benefit.eventId !== event.id) userError(`Este beneficio es válido para ${benefit.eventName}.`);
     const person = state.people.find((item) => item.id === benefit.personId);
     if (!person) userError('No se encontró la persona de este beneficio.');
     await runTransaction(db, async (transaction) => {
@@ -325,6 +347,7 @@ async function redeemBenefit(benefitToken) {
         transaction.get(doc(db, 'tickets', person.ticketToken)),
       ]);
       if (!freshBenefit.exists() || freshBenefit.data().usedAt) userError('Este QR de beneficio ya fue utilizado.');
+      if (freshBenefit.data().eventId && freshBenefit.data().eventId !== event.id) userError(`Este beneficio es válido para ${freshBenefit.data().eventName}.`);
       if (existingCheckin.exists()) userError(`${person.name} ya tiene un ingreso en este evento.`);
       if (!ticketSnapshot.exists()) userError('No se encontró la boleta de este beneficio.');
       const ticket = ticketSnapshot.data();
@@ -333,7 +356,7 @@ async function redeemBenefit(benefitToken) {
       const updates = { visits: newVisits, benefits };
       if (newVisits % BENEFIT_VISITS === 0) updates.benefits = await addBenefit(transaction, person, { ...ticket, benefits }, event, newVisits / BENEFIT_VISITS);
       transaction.set(checkinRef(event.id, person.id), { personId: person.id, eventId: event.id, type: 'benefit', checkedAt: serverTimestamp() });
-      transaction.update(doc(db, 'benefits', benefit.id), { usedAt: serverTimestamp() });
+      transaction.update(doc(db, 'benefits', benefit.id), { eventId: event.id, eventName: event.name, pending: false, usedAt: serverTimestamp() });
       transaction.update(doc(db, 'tickets', person.ticketToken), updates);
     });
     setFeedback(`Beneficio canjeado: ingreso registrado para ${person.name}.`);
@@ -399,9 +422,10 @@ async function resolvePendingBenefits(newEvent) {
       const ticket = ticketSnapshot.data();
       const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
       transaction.update(doc(db, 'benefits', benefit.id), { eventId: nextEvent.id, eventName: nextEvent.name, pending: false });
-      if (!benefits.some((item) => item.token === benefit.token)) {
-        transaction.update(doc(db, 'tickets', benefit.ticketToken), { benefits: [...benefits, { token: benefit.token, eventName: nextEvent.name }] });
-      }
+      const updatedBenefits = benefits.some((item) => item.token === benefit.token)
+        ? benefits.map((item) => item.token === benefit.token ? { token: benefit.token, eventName: nextEvent.name } : item)
+        : [...benefits, { token: benefit.token, eventName: nextEvent.name }];
+      transaction.update(doc(db, 'tickets', benefit.ticketToken), { benefits: updatedBenefits });
     });
   }
 }
