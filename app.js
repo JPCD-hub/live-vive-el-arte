@@ -171,7 +171,8 @@ function renderPeople() {
     const visits = countVisits(person);
     const progress = isCourtesy(person) ? visits : visits % BENEFIT_VISITS;
     const label = isCourtesy(person) ? 'visitas' : 'ciclo';
-    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${progress}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} ${label}</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button><button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
+    const upgrade = isCourtesy(person) && visits >= 3 ? `<button class="small-button upgrade" data-upgrade-person="${person.id}">Pasar a regular</button>` : '';
+    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${progress}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} ${label}</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button>${upgrade}<button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
   }).join('');
 }
 function renderEvents() {
@@ -201,14 +202,17 @@ function renderTicket(container, ticket) {
   const renderId = ++ticketRenderNumber;
   const statusStamps = Array.from({ length: required }, (_, index) => `<span class="reference-stamp reference-stamp-${index + 1} ${index < completed ? 'active' : ''}" aria-label="Visita ${index + 1}${index < completed ? ' registrada' : ' pendiente'}"></span>`).join('');
   const description = courtesy
-    ? `Entrada de cortesía: ${visits} de 3 miércoles utilizados.`
+    ? visits >= 3
+      ? 'Las 3 cortesías ya fueron utilizadas. Esta boleta no admite más ingresos.'
+      : `Entrada de cortesía: ${visits} de 3 miércoles utilizados.`
     : benefits.length
       ? `Tienes ${benefits.length} ${benefits.length === 1 ? 'beneficio disponible' : 'beneficios disponibles'} para usar en los eventos indicados.`
       : visits && visits % BENEFIT_VISITS === 0
         ? `Completaste ${visits} asistencias. Tu nuevo ciclo comienza en 0 de ${BENEFIT_VISITS}.`
         : `${cycleVisits(ticket)} de ${BENEFIT_VISITS} asistencias en el ciclo actual · ${visits} en total.`;
   const benefitMarkup = benefits.map((benefit, index) => `<div class="ticket-qr-item reward-qr"><span>BENEFICIO · ${escapeHtml(benefit.eventName)}</span><div id="benefit-qr-${renderId}-${index}" class="qr" aria-label="QR de beneficio para ${escapeHtml(benefit.eventName)}"></div></div>`).join('');
-  container.innerHTML = `<article class="ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}"><div class="ticket-art"><img src="${courtesy ? 'boleta%201.jpeg' : 'Boleta%202.jpeg'}" alt="Boleta ${ticketLabel(ticket)} Vive el Arte" />${statusStamps}</div><section class="ticket-personal"><div><p class="ticket-label">BOLETA VIRTUAL · ${ticketLabel(ticket).toUpperCase()}</p><p class="ticket-person">${escapeHtml(ticket.name)}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${ticket.id.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${description}</p></div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div id="ticket-qr-${renderId}" class="qr" aria-label="Código QR de ${escapeHtml(ticket.name)}"></div></div>${benefitMarkup}</div></section></article>`;
+  const upgradeNote = courtesy && visits >= 3 ? '<p class="ticket-upgrade-note">¿Quieres seguir asistiendo? Solicita al equipo Live! tu nueva boleta regular.</p>' : '';
+  container.innerHTML = `<article class="ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}"><div class="ticket-art"><img src="${courtesy ? 'boleta%201.jpeg' : 'Boleta%202.jpeg'}" alt="Boleta ${ticketLabel(ticket)} Vive el Arte" />${statusStamps}</div><section class="ticket-personal"><div><p class="ticket-label">BOLETA VIRTUAL · ${ticketLabel(ticket).toUpperCase()}</p><p class="ticket-person">${escapeHtml(ticket.name)}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${ticket.id.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${description}</p>${upgradeNote}</div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div id="ticket-qr-${renderId}" class="qr" aria-label="Código QR de ${escapeHtml(ticket.name)}"></div></div>${benefitMarkup}</div></section></article>`;
   new QRCode($(`#ticket-qr-${renderId}`), { text: JSON.stringify({ app: APP_NAME, ticketToken: ticket.id }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
   benefits.forEach((benefit, index) => {
     new QRCode($(`#benefit-qr-${renderId}-${index}`), { text: JSON.stringify({ app: APP_NAME, type: 'benefit', benefitToken: benefit.token }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
@@ -383,6 +387,30 @@ async function deletePerson(personId) {
     }
   } catch (error) { reportOperationError(error); }
 }
+async function upgradeToRegular(personId) {
+  const person = state.people.find((item) => item.id === personId);
+  if (!person || !isCourtesy(person) || countVisits(person) < 3) return;
+  if (!confirm(`Crear una nueva boleta regular para ${person.name}? La cortesía actual y su QR quedarán invalidados.`)) return;
+  try {
+    requireAdmin();
+    const newTicketToken = randomToken();
+    await runTransaction(db, async (transaction) => {
+      const [personSnapshot, oldTicketSnapshot] = await Promise.all([
+        transaction.get(doc(db, 'people', person.id)),
+        transaction.get(doc(db, 'tickets', person.ticketToken)),
+      ]);
+      if (!personSnapshot.exists() || personSnapshot.data().ticketType !== 'courtesy') userError('Esta persona ya no tiene una boleta de cortesía activa.');
+      if (!oldTicketSnapshot.exists() || Number(oldTicketSnapshot.data().visits) < 3) userError('La boleta de cortesía todavía no está agotada.');
+      transaction.update(personSnapshot.ref, { ticketType: 'regular', ticketToken: newTicketToken, upgradedAt: serverTimestamp() });
+      transaction.set(doc(db, 'tickets', newTicketToken), { name: personSnapshot.data().name, ticketType: 'regular', visits: 0, benefits: [], createdAt: serverTimestamp() });
+      transaction.delete(oldTicketSnapshot.ref);
+    });
+    displayedTicket = { id: newTicketToken, name: person.name, ticketType: 'regular', visits: 0, benefits: [] };
+    renderTicket($('#ticket-content'), displayedTicket);
+    if (!$('#ticket-modal').open) $('#ticket-modal').showModal();
+    setFeedback(`Boleta regular creada para ${person.name}. Comparte el nuevo enlace.`);
+  } catch (error) { reportOperationError(error); }
+}
 
 async function deleteEvent(eventId) {
   const event = state.events.find((item) => item.id === eventId);
@@ -442,7 +470,9 @@ $('#person-search').addEventListener('input', renderPeople);
 $('#people-list').addEventListener('click', (event) => {
   const ticketButton = event.target.closest('[data-ticket]');
   const deleteButton = event.target.closest('[data-delete-person]');
+  const upgradeButton = event.target.closest('[data-upgrade-person]');
   if (ticketButton) showTicket(ticketButton.dataset.ticket);
+  if (upgradeButton) upgradeToRegular(upgradeButton.dataset.upgradePerson);
   if (deleteButton) deletePerson(deleteButton.dataset.deletePerson);
 });
 $('#event-list').addEventListener('click', (event) => {

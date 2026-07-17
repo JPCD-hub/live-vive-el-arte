@@ -125,6 +125,8 @@ footer { padding:35px 32px; color:var(--cream); background:var(--green-dark); te
 .ticket-regular .ticket-qr-item .qr { width:94px; min-height:94px; }
 .ticket-regular .reward-qr { border:2px solid var(--red); background:#fff8ea; }
 .ticket-regular .reward-qr .qr { width:94px; min-height:94px; }
+.small-button.upgrade { color:var(--green); background:#e4d4ba; text-decoration:none; }
+.ticket-upgrade-note { margin:12px 0 0; padding:9px 10px; border-left:3px solid var(--red); color:var(--green); background:#fff8ea; font-size:12px; font-weight:bold; line-height:1.35; }
 @media (max-width:700px) { .ticket-codes { justify-content:end; }.ticket-qr-item .qr,.reward-qr .qr { width:90px; min-height:90px; }.ticket-regular .ticket-codes { margin-top:0; } }
 
 .hero-card { width:min(100%,340px); justify-self:end; overflow:visible; padding:7px; background:#f7f0e4; box-shadow:13px 15px 0 #d8cdb9; }
