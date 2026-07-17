@@ -54,6 +54,7 @@ function formatDate(value) { return new Intl.DateTimeFormat('es-CO', { dateStyle
 function isCourtesy(person) { return person.ticketType === 'courtesy'; }
 function ticketLabel(ticket) { return ticket.ticketType === 'courtesy' ? 'Cortesía' : 'Regular'; }
 function requiredVisits(ticket) { return ticket.ticketType === 'courtesy' ? 3 : BENEFIT_VISITS; }
+function cycleVisits(ticket) { return ticket.ticketType === 'courtesy' ? (Number(ticket.visits) || 0) : (Number(ticket.visits) || 0) % BENEFIT_VISITS; }
 function ticketForPerson(person) { return state.tickets.get(person.ticketToken); }
 function countVisits(person) { return ticketForPerson(person)?.visits ?? state.checkins.filter((checkin) => checkin.personId === person.id).length; }
 function sortedEvents() { return state.events.slice().sort((a, b) => a.date.localeCompare(b.date)); }
@@ -168,7 +169,9 @@ function renderPeople() {
   $('#people-list').innerHTML = people.map((person) => {
     const contact = [person.email, person.phone].filter(Boolean).join(' · ') || 'Sin datos de contacto';
     const visits = countVisits(person);
-    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${visits}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} visitas</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button><button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
+    const progress = isCourtesy(person) ? visits : visits % BENEFIT_VISITS;
+    const label = isCourtesy(person) ? 'visitas' : 'ciclo';
+    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${progress}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} ${label}</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button><button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
   }).join('');
 }
 function renderEvents() {
@@ -193,7 +196,7 @@ function renderTicket(container, ticket) {
   const visits = Number(ticket.visits) || 0;
   const courtesy = ticket.ticketType === 'courtesy';
   const required = requiredVisits(ticket);
-  const completed = Math.min(visits, required);
+  const completed = Math.min(cycleVisits(ticket), required);
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
   const renderId = ++ticketRenderNumber;
   const statusStamps = Array.from({ length: required }, (_, index) => `<span class="reference-stamp reference-stamp-${index + 1} ${index < completed ? 'active' : ''}" aria-label="Visita ${index + 1}${index < completed ? ' registrada' : ' pendiente'}"></span>`).join('');
@@ -201,7 +204,9 @@ function renderTicket(container, ticket) {
     ? `Entrada de cortesía: ${visits} de 3 miércoles utilizados.`
     : benefits.length
       ? `Tienes ${benefits.length} ${benefits.length === 1 ? 'beneficio disponible' : 'beneficios disponibles'} para usar en los eventos indicados.`
-      : `${visits} ${visits === 1 ? 'asistencia registrada' : 'asistencias registradas'} · Completa ${BENEFIT_VISITS} para recibir el QR del siguiente evento.`;
+      : visits && visits % BENEFIT_VISITS === 0
+        ? `Completaste ${visits} asistencias. Tu nuevo ciclo comienza en 0 de ${BENEFIT_VISITS}.`
+        : `${cycleVisits(ticket)} de ${BENEFIT_VISITS} asistencias en el ciclo actual · ${visits} en total.`;
   const benefitMarkup = benefits.map((benefit, index) => `<div class="ticket-qr-item reward-qr"><span>BENEFICIO · ${escapeHtml(benefit.eventName)}</span><div id="benefit-qr-${renderId}-${index}" class="qr" aria-label="QR de beneficio para ${escapeHtml(benefit.eventName)}"></div></div>`).join('');
   container.innerHTML = `<article class="ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}"><div class="ticket-art"><img src="${courtesy ? 'boleta%201.jpeg' : 'Boleta%202.jpeg'}" alt="Boleta ${ticketLabel(ticket)} Vive el Arte" />${statusStamps}</div><section class="ticket-personal"><div><p class="ticket-label">BOLETA VIRTUAL · ${ticketLabel(ticket).toUpperCase()}</p><p class="ticket-person">${escapeHtml(ticket.name)}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${ticket.id.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${description}</p></div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div id="ticket-qr-${renderId}" class="qr" aria-label="Código QR de ${escapeHtml(ticket.name)}"></div></div>${benefitMarkup}</div></section></article>`;
   new QRCode($(`#ticket-qr-${renderId}`), { text: JSON.stringify({ app: APP_NAME, ticketToken: ticket.id }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });

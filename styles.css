@@ -120,6 +120,11 @@ footer { padding:35px 32px; color:var(--cream); background:var(--green-dark); te
 .reward-qr span { color:var(--red); }
 .reward-qr .qr { width:106px; min-height:106px; }
 .ticket-regular .ticket-codes { margin-top:24px; }
+.ticket-regular .ticket-codes { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; align-items:start; }
+.ticket-regular .ticket-qr-item { min-width:0; justify-items:center; padding:10px; border:1px solid #d8cdb9; background:#fff; }
+.ticket-regular .ticket-qr-item .qr { width:94px; min-height:94px; }
+.ticket-regular .reward-qr { border:2px solid var(--red); background:#fff8ea; }
+.ticket-regular .reward-qr .qr { width:94px; min-height:94px; }
 @media (max-width:700px) { .ticket-codes { justify-content:end; }.ticket-qr-item .qr,.reward-qr .qr { width:90px; min-height:90px; }.ticket-regular .ticket-codes { margin-top:0; } }
 
 .hero-card { width:min(100%,340px); justify-self:end; overflow:visible; padding:7px; background:#f7f0e4; box-shadow:13px 15px 0 #d8cdb9; }
