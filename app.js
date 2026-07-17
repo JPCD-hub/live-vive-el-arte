@@ -360,15 +360,11 @@ async function redeemBenefit(benefitToken) {
       if (existingCheckin.exists()) userError(`${person.name} ya tiene un ingreso en este evento.`);
       if (!ticketSnapshot.exists()) userError('No se encontró la boleta de este beneficio.');
       const ticket = ticketSnapshot.data();
-      const newVisits = (Number(ticket.visits) || 0) + 1;
       const benefits = (Array.isArray(ticket.benefits) ? ticket.benefits : []).filter((item) => item.token !== benefit.token);
-      const updates = { visits: newVisits, benefits };
-      if (newVisits % BENEFIT_VISITS === 0) updates.benefits = await addBenefit(transaction, person, { ...ticket, benefits }, event, newVisits / BENEFIT_VISITS);
-      transaction.set(checkinRef(event.id, person.id), { personId: person.id, eventId: event.id, type: 'benefit', checkedAt: serverTimestamp() });
       transaction.update(doc(db, 'benefits', benefit.id), { eventId: event.id, eventName: event.name, pending: false, usedAt: serverTimestamp() });
-      transaction.update(doc(db, 'tickets', person.ticketToken), updates);
+      transaction.update(doc(db, 'tickets', person.ticketToken), { benefits });
     });
-    setFeedback(`Beneficio canjeado: ingreso registrado para ${person.name}.`);
+    setFeedback(`Beneficio canjeado para ${person.name}. No se registra asistencia adicional.`);
   } catch (error) { reportOperationError(error); }
 }
 
