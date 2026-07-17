@@ -46,6 +46,7 @@ let displayedTicket = null;
 let operationalUnsubscribers = [];
 let isAdmin = false;
 let ticketRenderNumber = 0;
+let authIssue = '';
 
 function localDate() { return new Date().toISOString().slice(0, 10); }
 function escapeHtml(value = '') { const node = document.createElement('div'); node.textContent = value; return node.innerHTML; }
@@ -99,7 +100,7 @@ function updateAccessUi(user = auth.currentUser) {
     ? `Administrando como ${user.displayName || user.email}`
     : user
       ? 'Esta cuenta no tiene acceso de administración.'
-      : 'Consulta tu boleta con su enlace personal.';
+      : authIssue || 'Consulta tu boleta con su enlace personal.';
   $('#public-ticket-view').hidden = !hasTicket;
   $('#public-message').hidden = hasTicket || isAdmin;
 }
@@ -434,7 +435,7 @@ $('#manual-checkin').addEventListener('click', () => registerCheckin($('#manual-
 $('#close-ticket').addEventListener('click', () => $('#ticket-modal').close());
 $('#share-ticket').addEventListener('click', shareTicket);
 $('#sign-in').addEventListener('click', async () => {
-  try { await signInWithRedirect(auth, new GoogleAuthProvider()); } catch (error) { console.error(error); $('#auth-status').textContent = authErrorMessage(error); }
+  try { await signInWithRedirect(auth, new GoogleAuthProvider()); } catch (error) { console.error(error); authIssue = authErrorMessage(error); updateAccessUi(); }
 });
 $('#sign-out').addEventListener('click', () => signOut(auth));
 
@@ -479,7 +480,7 @@ $('#stop-scanner').addEventListener('click', stopScanner);
 
 $('#event-date').value = localDate();
 listenToPublicTicket();
-getRedirectResult(auth).catch((error) => { console.error(error); $('#auth-status').textContent = authErrorMessage(error); });
+getRedirectResult(auth).catch((error) => { console.error(error); authIssue = authErrorMessage(error); updateAccessUi(); });
 onAuthStateChanged(auth, async (user) => {
   stopOperationalListeners();
   isAdmin = false;
