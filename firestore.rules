@@ -9,35 +9,142 @@ service cloud.firestore {
       return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
 
-    // Membership is provisioned outside the app. An authenticated user may only
-    // read its own membership document in order to determine access.
+    function isToken(value) {
+      return value is string && value.matches('^[A-Za-z0-9_-]{43}$');
+    }
+
+    function isTicketType(value) {
+      return value == 'regular' || value == 'courtesy';
+    }
+
+    function validTicket(data) {
+      return data.keys().hasAll(['name', 'ticketType', 'visits', 'benefits'])
+        && data.keys().hasOnly(['name', 'ticketType', 'visits', 'benefits', 'createdAt'])
+        && data.name is string
+        && isTicketType(data.ticketType)
+        && data.visits is int
+        && data.visits >= 0
+        && data.benefits is list
+        && (!data.keys().hasAny(['createdAt']) || data.createdAt is timestamp);
+    }
+
+    function validPerson(data) {
+      return data.keys().hasAll(['name', 'ticketType', 'email', 'phone', 'note', 'ticketToken'])
+        && data.keys().hasOnly(['name', 'ticketType', 'email', 'phone', 'note', 'ticketToken', 'createdAt', 'upgradedAt'])
+        && data.name is string
+        && isTicketType(data.ticketType)
+        && data.email is string
+        && data.phone is string
+        && data.note is string
+        && isToken(data.ticketToken)
+        && (!data.keys().hasAny(['createdAt']) || data.createdAt is timestamp)
+        && (!data.keys().hasAny(['upgradedAt']) || data.upgradedAt is timestamp);
+    }
+
+    function validEvent(data) {
+      return data.keys().hasAll(['name', 'date', 'description', 'createdAt'])
+        && data.keys().hasOnly(['name', 'date', 'description', 'createdAt'])
+        && data.name is string
+        && data.date is string
+        && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && data.description is string
+        && data.createdAt is timestamp
+        && data.createdAt == request.time;
+    }
+
+    function validCheckin(data, checkinId) {
+      return data.keys().hasAll(['personId', 'eventId', 'type', 'checkedAt'])
+        && data.keys().hasOnly(['personId', 'eventId', 'type', 'benefitToken', 'checkedAt'])
+        && data.personId is string
+        && data.eventId is string
+        && (data.type == 'regular' || data.type == 'benefit')
+        && (data.type == 'regular' || (data.keys().hasAll(['benefitToken']) && isToken(data.benefitToken)))
+        && data.checkedAt is timestamp
+        && data.checkedAt == request.time
+        && checkinId == data.eventId + '_' + data.personId
+        && exists(/databases/$(database)/documents/people/$(data.personId))
+        && exists(/databases/$(database)/documents/events/$(data.eventId));
+    }
+
+    function validBenefit(data, benefitId) {
+      return data.keys().hasAll(['personId', 'ticketToken', 'qualifyingEventId', 'eventId', 'eventName', 'visitNumber', 'token', 'pending', 'earnedAt', 'usedAt'])
+        && data.keys().hasOnly(['personId', 'ticketToken', 'qualifyingEventId', 'eventId', 'eventName', 'visitNumber', 'token', 'pending', 'earnedAt', 'usedAt'])
+        && data.personId is string
+        && isToken(data.ticketToken)
+        && data.qualifyingEventId is string
+        && (data.eventId == null || data.eventId is string)
+        && data.eventName is string
+        && data.visitNumber is int
+        && data.visitNumber > 0
+        && isToken(data.token)
+        && data.pending is bool
+        && data.pending == (data.eventId == null)
+        && data.earnedAt is timestamp
+        && (data.usedAt == null || data.usedAt is timestamp)
+        && benefitId == data.personId + '_' + data.visitNumber;
+    }
+
     match /admins/{userId} {
       allow get: if signedIn() && request.auth.uid == userId;
       allow list, create, update, delete: if false;
     }
 
-    // This is the only public collection. A token is an unguessable document ID;
-    // listing remains prohibited, and ticket documents contain no contact data.
+    // The token is an unguessable document ID. Public users can only read one ticket.
     match /tickets/{ticketToken} {
       allow get: if true;
       allow list: if isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow create: if isAdmin() && isToken(ticketToken) && validTicket(request.resource.data)
+        && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt == request.time);
+      allow update: if isAdmin() && validTicket(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['visits', 'benefits'])
+        && request.resource.data.visits >= resource.data.visits
+        && request.resource.data.visits <= resource.data.visits + 1;
+      allow delete: if isAdmin();
     }
 
     match /people/{personId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow create: if isAdmin() && validPerson(request.resource.data)
+        && request.resource.data.keys().hasAll(['createdAt'])
+        && request.resource.data.createdAt == request.time;
+      allow update: if isAdmin() && validPerson(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ticketType', 'ticketToken', 'upgradedAt'])
+        && resource.data.ticketType == 'courtesy'
+        && request.resource.data.ticketType == 'regular'
+        && request.resource.data.ticketToken != resource.data.ticketToken
+        && request.resource.data.upgradedAt == request.time;
+      allow delete: if isAdmin();
     }
 
     match /events/{eventId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow create: if isAdmin() && validEvent(request.resource.data);
+      allow update: if false;
+      allow delete: if isAdmin();
     }
 
     match /checkins/{checkinId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow create: if isAdmin() && validCheckin(request.resource.data, checkinId);
+      allow update: if false;
+      allow delete: if isAdmin();
     }
 
     match /benefits/{benefitId} {
-      allow read, write: if isAdmin();
+      allow read: if isAdmin();
+      allow create: if isAdmin() && validBenefit(request.resource.data, benefitId)
+        && request.resource.data.earnedAt == request.time
+        && request.resource.data.usedAt == null
+        && exists(/databases/$(database)/documents/people/$(request.resource.data.personId))
+        && exists(/databases/$(database)/documents/tickets/$(request.resource.data.ticketToken))
+        && exists(/databases/$(database)/documents/events/$(request.resource.data.qualifyingEventId))
+        && (request.resource.data.eventId == null || exists(/databases/$(database)/documents/events/$(request.resource.data.eventId)));
+      allow update: if isAdmin() && validBenefit(request.resource.data, benefitId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['eventId', 'eventName', 'pending', 'usedAt'])
+        && (request.resource.data.usedAt == resource.data.usedAt
+          || (resource.data.usedAt == null && request.resource.data.usedAt == request.time))
+        && (request.resource.data.eventId == null || exists(/databases/$(database)/documents/events/$(request.resource.data.eventId)));
+      allow delete: if isAdmin();
     }
   }
 }

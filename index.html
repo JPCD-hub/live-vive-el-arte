@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#003c2d" />
     <title>Live! | Vuelve al arte</title>
     <meta name="color-scheme" content="light" />
-    <link rel="stylesheet" href="styles.css?v=24" />
+    <link rel="stylesheet" href="styles.css?v=25" />
   </head>
   <body>
     <header class="topbar">
@@ -78,8 +78,9 @@
         <div class="checkin-grid">
           <article class="checkin-card">
             <label>Evento activo
-              <select id="active-event"></select>
+              <select id="active-event" aria-describedby="connection-status"></select>
             </label>
+            <p id="connection-status" class="connection-status" role="status" aria-live="polite">Verificando conexión...</p>
             <div class="scan-actions">
               <button id="start-scanner" class="button button-cream" type="button">Escanear QR</button>
               <button id="stop-scanner" class="button button-ghost" type="button" hidden>Detener camara</button>
@@ -120,7 +121,7 @@
         <label>Correo electronico<input id="person-email" name="email" type="email" maxlength="120" autocomplete="email" /></label>
         <label>Telefono<input id="person-phone" name="phone" type="tel" maxlength="30" autocomplete="tel" /></label>
         <label>Nota (opcional)<textarea id="person-note" name="note" maxlength="240"></textarea></label>
-        <div class="form-actions"><button class="button button-outline" value="cancel" formnovalidate>Cancelar</button><button class="button button-primary" value="default">Crear boleta</button></div>
+        <div class="form-actions"><button class="button button-outline" type="submit" value="cancel" formnovalidate>Cancelar</button><button class="button button-primary" type="submit" value="default">Crear boleta</button></div>
       </form>
     </dialog>
 
@@ -130,7 +131,7 @@
         <label>Nombre del evento<input id="event-name" name="name" required maxlength="100" /></label>
         <label>Fecha<input id="event-date" name="date" type="date" required /></label>
         <label>Descripcion (opcional)<textarea id="event-description" name="description" maxlength="240"></textarea></label>
-        <div class="form-actions"><button class="button button-outline" value="cancel" formnovalidate>Cancelar</button><button class="button button-primary" value="default">Guardar evento</button></div>
+        <div class="form-actions"><button class="button button-outline" type="submit" value="cancel" formnovalidate>Cancelar</button><button class="button button-primary" type="submit" value="default">Guardar evento</button></div>
       </form>
     </dialog>
 
@@ -143,16 +144,16 @@
     <dialog id="auth-form" class="modal form-modal">
       <form id="admin-auth-form" method="dialog">
         <div class="modal-heading"><div><p class="eyebrow">ACCESO PROTEGIDO</p><h2>Administración</h2></div><button class="icon-button" value="cancel" formnovalidate aria-label="Cerrar">×</button></div>
-        <p class="auth-help">Crea una cuenta o inicia sesión. Solo las cuentas autorizadas por Live! podrán administrar eventos, QR y asistencias.</p>
+        <p class="auth-help">Inicia sesión con una cuenta autorizada por Live! para administrar eventos, QR y asistencias.</p>
         <label>Correo electrónico<input id="admin-email" type="email" required autocomplete="email" /></label>
         <label>Contraseña<input id="admin-password" type="password" required minlength="6" autocomplete="current-password" /></label>
         <p id="auth-feedback" class="feedback" aria-live="polite"></p>
-        <div class="form-actions"><button class="button button-outline" value="cancel" formnovalidate>Cancelar</button><button class="button button-outline" value="create">Crear cuenta</button><button class="button button-primary" value="signin">Entrar</button></div>
+        <div class="form-actions"><button class="button button-outline" type="submit" value="cancel" formnovalidate>Cancelar</button><button class="button button-primary" type="submit" value="signin">Entrar</button></div>
       </form>
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <script type="module" src="app.js?v=10"></script>
+    <script type="module" src="app.js?v=11"></script>
   </body>
 </html>

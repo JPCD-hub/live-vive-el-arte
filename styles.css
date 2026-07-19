@@ -484,6 +484,17 @@ h2 {
   line-height: 1.4;
 }
 
+.connection-status {
+  min-height: 20px;
+  margin: 12px 0 0;
+  color: #c5d4cc;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.connection-status.online { color: #b9e1c9; }
+.connection-status.offline { color: #ffcfaa; }
+
 .manual-checkin {
   display: flex;
   flex-direction: column;
@@ -613,6 +624,9 @@ footer span {
 
 .form-modal {
   width: min(520px, calc(100vw - 30px));
+  max-height: calc(100vh - 30px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .form-modal form {
@@ -638,6 +652,15 @@ footer span {
   border-bottom: 1px solid var(--green);
   background: transparent;
   outline: 0;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #d41918;
+  outline-offset: 3px;
 }
 
 .form-modal textarea {
@@ -1064,6 +1087,7 @@ footer span {
 
   @supports (height: 100dvh) {
     .ticket-modal { height: 100dvh; }
+    .form-modal { max-height: calc(100dvh - 16px); }
   }
   .ticket-close { top: 8px; right: 8px; width: 32px; height: 32px; font-size: 22px; color: var(--cream); background: var(--green); }
 

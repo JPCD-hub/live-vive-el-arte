@@ -2,7 +2,6 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth,
   onAuthStateChanged,
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
@@ -10,6 +9,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  enableMultiTabIndexedDbPersistence,
   getDoc,
   getDocs,
   getFirestore,
@@ -47,8 +47,18 @@ let isAdmin = false;
 let ticketRenderNumber = 0;
 let authIssue = '';
 const pendingBenefitSync = new Set();
+const operationalSources = new Map();
+const submittingForms = new WeakSet();
+let entryInFlight = false;
+let scannerStarting = false;
+let scannerDecoding = false;
+let offlineCacheAvailable = true;
 
-function localDate() { return new Date().toISOString().slice(0, 10); }
+function localDate() {
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  return now.toISOString().slice(0, 10);
+}
 function escapeHtml(value = '') { const node = document.createElement('div'); node.textContent = value; return node.innerHTML; }
 function formatDate(value) { return new Intl.DateTimeFormat('es-CO', { dateStyle: 'long' }).format(new Date(`${value}T12:00:00`)); }
 function isCourtesy(person) { return person.ticketType === 'courtesy'; }
@@ -58,12 +68,60 @@ function cycleVisits(ticket) { return ticket.ticketType === 'courtesy' ? (Number
 function ticketForPerson(person) { return state.tickets.get(person.ticketToken); }
 function countVisits(person) { return ticketForPerson(person)?.visits ?? state.checkins.filter((checkin) => checkin.personId === person.id).length; }
 function sortedEvents() { return state.events.slice().sort((a, b) => a.date.localeCompare(b.date)); }
-function currentEvent() { return state.events.find((event) => event.id === $('#active-event').value) || sortedEvents()[0]; }
+function currentEvent() { return state.events.find((event) => event.id === $('#active-event').value); }
 function nextEventAfter(event, events = state.events) { return events.slice().sort((a, b) => a.date.localeCompare(b.date)).find((candidate) => candidate.date > event.date); }
 function setFeedback(message, error = false) {
   const feedback = $('#checkin-feedback');
   feedback.textContent = message;
   feedback.classList.toggle('error', error);
+}
+function operationalDataIsCurrent() {
+  return ['people', 'events', 'checkins', 'benefits', 'tickets'].every((name) => operationalSources.get(name) === true);
+}
+function canRegisterEntries(ignoreDecodeLock = false) {
+  return navigator.onLine && operationalDataIsCurrent() && !entryInFlight && !scannerStarting && (ignoreDecodeLock || !scannerDecoding);
+}
+function updateEntryControls() {
+  const event = currentEvent();
+  const blocked = !canRegisterEntries();
+  $('#active-event').disabled = Boolean(scanner || scannerStarting || entryInFlight) || !state.events.length;
+  $('#manual-person').disabled = entryInFlight || !state.people.length;
+  $('#manual-checkin').disabled = blocked || !event || !state.people.length;
+  $('#start-scanner').disabled = blocked || !event || !state.people.length;
+}
+function updateConnectionStatus() {
+  const status = $('#connection-status');
+  if (!status) return;
+  status.className = 'connection-status';
+  if (!navigator.onLine) {
+    status.textContent = 'Sin conexión. No se pueden registrar ingresos.';
+    status.classList.add('offline');
+  } else if (!operationalDataIsCurrent()) {
+    status.textContent = offlineCacheAvailable
+      ? 'Sincronizando datos. Espera antes de registrar ingresos.'
+      : 'Conectando datos operativos. Espera antes de registrar ingresos.';
+    status.classList.add('offline');
+  } else {
+    status.textContent = 'Datos sincronizados. Puedes registrar ingresos.';
+    status.classList.add('online');
+  }
+  updateEntryControls();
+}
+async function submitEntry(operation, ignoreDecodeLock = false) {
+  if (entryInFlight) return;
+  if (!canRegisterEntries(ignoreDecodeLock)) {
+    setFeedback(navigator.onLine ? 'Espera a que los datos terminen de sincronizar.' : 'No hay conexión. No se puede registrar el ingreso.', true);
+    updateConnectionStatus();
+    return;
+  }
+  entryInFlight = true;
+  updateEntryControls();
+  try {
+    await operation();
+  } finally {
+    entryInFlight = false;
+    updateEntryControls();
+  }
 }
 function randomToken() {
   const bytes = new Uint8Array(32);
@@ -109,20 +167,26 @@ function updateAccessUi(user = auth.currentUser) {
 function stopOperationalListeners() {
   operationalUnsubscribers.forEach((unsubscribe) => unsubscribe());
   operationalUnsubscribers = [];
+  operationalSources.clear();
   state.people = [];
   state.events = [];
   state.checkins = [];
   state.benefits = [];
   state.tickets = new Map();
+  updateConnectionStatus();
 }
 
 function listenToOperationalData() {
-  const listen = (name, apply) => onSnapshot(collection(db, name), (snapshot) => {
+  const listen = (name, apply) => onSnapshot(collection(db, name), { includeMetadataChanges: true }, (snapshot) => {
+    operationalSources.set(name, !snapshot.metadata.fromCache);
     apply(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
     render();
+    updateConnectionStatus();
   }, (error) => {
+    operationalSources.set(name, false);
     console.error(`No se pudo leer ${name}`, error);
     setFeedback('No se pudieron actualizar los datos operativos.', true);
+    updateConnectionStatus();
   });
   operationalUnsubscribers = [
     listen('people', (items) => { state.people = items; }),
@@ -140,6 +204,7 @@ function render() {
   renderEvents();
   renderSelects();
   syncPendingBenefitsToTickets();
+  updateConnectionStatus();
 }
 function syncPendingBenefitsToTickets() {
   state.benefits.filter((benefit) => !benefit.usedAt && benefit.token && benefit.ticketToken).forEach((benefit) => {
@@ -184,13 +249,12 @@ function renderEvents() {
 function renderSelects() {
   const events = sortedEvents();
   const selectedEvent = $('#active-event').value;
-  $('#active-event').innerHTML = events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} · ${formatDate(event.date)}</option>`).join('');
-  $('#active-event').value = events.some((event) => event.id === selectedEvent) ? selectedEvent : (events[0]?.id || '');
+  $('#active-event').innerHTML = '<option value="">Selecciona el evento activo</option>' + events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} · ${formatDate(event.date)}</option>`).join('');
+  $('#active-event').value = events.some((event) => event.id === selectedEvent) ? selectedEvent : '';
   const selectedPerson = $('#manual-person').value;
   $('#manual-person').innerHTML = '<option value="">Selecciona una persona</option>' + state.people.slice().sort((a, b) => a.name.localeCompare(b.name)).map((person) => `<option value="${person.id}">${escapeHtml(person.name)} (${countVisits(person)} visitas)</option>`).join('');
   $('#manual-person').value = state.people.some((person) => person.id === selectedPerson) ? selectedPerson : '';
-  $('#manual-checkin').disabled = !state.people.length || !events.length;
-  $('#start-scanner').disabled = !state.people.length || !events.length;
+  updateEntryControls();
 }
 
 function renderTicket(container, ticket) {
@@ -311,11 +375,10 @@ async function addBenefit(transaction, person, ticket, event, visitNumber, event
   return [...benefits, { token, eventName }];
 }
 
-async function registerCheckin(personId) {
+async function registerCheckin(personId, event = currentEvent()) {
   try {
     requireAdmin();
     const person = state.people.find((item) => item.id === personId);
-    const event = currentEvent();
     if (!person || !event) userError('Selecciona una persona y un evento.');
     await runTransaction(db, async (transaction) => {
       const [existingCheckin, ticketSnapshot] = await Promise.all([
@@ -337,14 +400,13 @@ async function registerCheckin(personId) {
   } catch (error) { reportOperationError(error); }
 }
 
-async function redeemBenefit(benefitToken) {
+async function redeemBenefit(benefitToken, event = currentEvent()) {
   try {
     requireAdmin();
     const matches = await getDocs(query(collection(db, 'benefits'), where('token', '==', benefitToken), limit(1)));
     if (matches.empty) userError('Este QR de beneficio no es válido.');
     const benefitSnapshot = matches.docs[0];
     const benefit = { id: benefitSnapshot.id, ...benefitSnapshot.data() };
-    const event = currentEvent();
     if (!event) userError('Selecciona el evento activo para canjear el beneficio.');
     if (benefit.eventId && benefit.eventId !== event.id) userError(`Este beneficio es válido para ${benefit.eventName}.`);
     const person = state.people.find((item) => item.id === benefit.personId);
@@ -361,6 +423,7 @@ async function redeemBenefit(benefitToken) {
       if (!ticketSnapshot.exists()) userError('No se encontró la boleta de este beneficio.');
       const ticket = ticketSnapshot.data();
       const benefits = (Array.isArray(ticket.benefits) ? ticket.benefits : []).filter((item) => item.token !== benefit.token);
+      transaction.set(checkinRef(event.id, person.id), { personId: person.id, eventId: event.id, type: 'benefit', benefitToken: benefit.token, checkedAt: serverTimestamp() });
       transaction.update(doc(db, 'benefits', benefit.id), { eventId: event.id, eventName: event.name, pending: false, usedAt: serverTimestamp() });
       transaction.update(doc(db, 'tickets', person.ticketToken), { benefits });
     });
@@ -459,6 +522,23 @@ async function resolvePendingBenefits(newEvent) {
   }
 }
 
+async function submitForm(form, operation) {
+  if (submittingForms.has(form)) return;
+  submittingForms.add(form);
+  form.setAttribute('aria-busy', 'true');
+  const buttons = [...form.querySelectorAll('button')];
+  buttons.forEach((button) => { button.disabled = true; });
+  try {
+    await operation();
+  } catch (error) {
+    reportOperationError(error);
+  } finally {
+    submittingForms.delete(form);
+    form.removeAttribute('aria-busy');
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+}
+
 document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', () => {
   if (isAdmin) $(`#${button.dataset.open}`).showModal();
 }));
@@ -475,17 +555,21 @@ $('#event-list').addEventListener('click', (event) => {
   const button = event.target.closest('[data-delete-event]');
   if (button) deleteEvent(button.dataset.deleteEvent);
 });
-$('#new-person-form').addEventListener('submit', (event) => {
+$('#new-person-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (event.submitter?.value === 'cancel') return $('#person-form').close();
-  createPerson(event).catch(reportOperationError);
+  await submitForm(event.currentTarget, () => createPerson(event));
 });
-$('#new-event-form').addEventListener('submit', (event) => {
+$('#new-event-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (event.submitter?.value === 'cancel') return $('#event-form').close();
-  createEvent(event).catch(reportOperationError);
+  await submitForm(event.currentTarget, () => createEvent(event));
 });
-$('#manual-checkin').addEventListener('click', () => registerCheckin($('#manual-person').value));
+$('#manual-checkin').addEventListener('click', () => submitEntry(() => registerCheckin($('#manual-person').value, currentEvent())));
+$('#active-event').addEventListener('change', () => {
+  setFeedback('');
+  updateEntryControls();
+});
 $('#close-ticket').addEventListener('click', () => $('#ticket-modal').close());
 $('#share-ticket').addEventListener('click', shareTicket);
 $('#sign-in').addEventListener('click', () => $('#auth-form').showModal());
@@ -495,8 +579,7 @@ $('#admin-auth-form').addEventListener('submit', async (event) => {
   const email = $('#admin-email').value.trim();
   const password = $('#admin-password').value;
   try {
-    if (event.submitter?.value === 'create') await createUserWithEmailAndPassword(auth, email, password);
-    else await signInWithEmailAndPassword(auth, email, password);
+    await signInWithEmailAndPassword(auth, email, password);
     $('#auth-feedback').textContent = '';
     $('#auth-form').close();
   } catch (error) {
@@ -508,47 +591,84 @@ $('#admin-auth-form').addEventListener('submit', async (event) => {
 $('#sign-out').addEventListener('click', () => signOut(auth));
 
 async function startScanner() {
+  if (scanner || scannerStarting || entryInFlight) return;
+  const event = currentEvent();
+  if (!event) return setFeedback('Selecciona el evento activo antes de abrir la cámara.', true);
+  if (!canRegisterEntries()) {
+    setFeedback(navigator.onLine ? 'Espera a que los datos terminen de sincronizar.' : 'No hay conexión. No se puede abrir la cámara.', true);
+    updateConnectionStatus();
+    return;
+  }
+  if (!window.isSecureContext) return setFeedback('La cámara requiere abrir la página mediante HTTPS.', true);
   if (!window.Html5Qrcode) return setFeedback('No se pudo cargar el lector QR. Revisa tu conexión.', true);
+  scannerStarting = true;
+  updateEntryControls();
   $('#qr-reader').hidden = false;
   $('#start-scanner').hidden = true;
   $('#stop-scanner').hidden = false;
-  scanner = new Html5Qrcode('qr-reader');
+  const activeScanner = new Html5Qrcode('qr-reader');
+  scanner = activeScanner;
   try {
-    await scanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decoded) => {
+    await activeScanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decoded) => {
+      if (scannerDecoding || entryInFlight) return;
+      scannerDecoding = true;
       try {
-        const payload = JSON.parse(decoded);
-        if (payload.app !== APP_NAME) throw new Error();
-        if (payload.type === 'benefit') await redeemBenefit(payload.benefitToken);
+        let payload;
+        try { payload = JSON.parse(decoded); } catch (_) { userError('Este código QR no pertenece a Live! Vive el Arte.'); }
+        if (payload.app !== APP_NAME) userError('Este código QR no pertenece a Live! Vive el Arte.');
+        let operation;
+        if (payload.type === 'benefit') operation = () => redeemBenefit(payload.benefitToken, event);
         else {
           const person = state.people.find((item) => item.ticketToken === payload.ticketToken);
           if (!person) userError('No se encontró una persona para esta boleta.');
-          await registerCheckin(person.id);
+          operation = () => registerCheckin(person.id, event);
         }
-        stopScanner();
-      } catch (error) { reportOperationError(error); }
+        await stopScanner(true);
+        await submitEntry(operation, true);
+      } catch (error) { reportOperationError(error); } finally { scannerDecoding = false; }
     });
   } catch (error) {
     console.error(error);
     setFeedback('No se pudo abrir la cámara. Autoriza el permiso o registra el ingreso manualmente.', true);
     stopScanner();
+  } finally {
+    scannerStarting = false;
+    updateEntryControls();
   }
 }
-async function stopScanner() {
-  if (scanner) {
-    try { await scanner.stop(); } catch (_) { /* The scanner did not start completely. */ }
-    scanner.clear();
-    scanner = null;
+async function stopScanner(keepDecodeLock = false) {
+  const activeScanner = scanner;
+  scanner = null;
+  scannerStarting = false;
+  if (activeScanner) {
+    try { await activeScanner.stop(); } catch (_) { /* The scanner did not start completely. */ }
+    try { activeScanner.clear(); } catch (_) { /* The scanner was already cleared. */ }
   }
+  if (!keepDecodeLock) scannerDecoding = false;
   $('#qr-reader').hidden = true;
   $('#start-scanner').hidden = false;
   $('#stop-scanner').hidden = true;
+  updateEntryControls();
 }
 $('#start-scanner').addEventListener('click', startScanner);
 $('#stop-scanner').addEventListener('click', stopScanner);
 
+enableMultiTabIndexedDbPersistence(db).catch((error) => {
+  offlineCacheAvailable = false;
+  console.warn('La caché local persistente no está disponible.', error.code || error);
+  updateConnectionStatus();
+});
+window.addEventListener('online', updateConnectionStatus);
+window.addEventListener('offline', updateConnectionStatus);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopScanner();
+});
+window.addEventListener('pagehide', () => { stopScanner(); });
+
 $('#event-date').value = localDate();
 listenToPublicTicket();
 onAuthStateChanged(auth, async (user) => {
+  stopScanner();
   stopOperationalListeners();
   isAdmin = false;
   if (user) {

@@ -1,30 +1,44 @@
 # Live! Vive el Arte
 
-Aplicación estática con Firebase para administrar la comunidad, generar boletas virtuales con QR y registrar asistencias en tiempo real.
+Aplicación web para administrar boletas virtuales, QR y asistencias en tiempo real durante los eventos de Live! Vive el Arte.
 
-## Uso
+## Operación En El Evento
 
-1. Configura Firebase siguiendo la sección siguiente y publica la app en un host HTTPS.
-2. Inicia sesión con Google. Solo una cuenta cuyo UID exista en `admins/{uid}` verá la administración.
-3. Crea eventos y registra personas. Cada boleta recibe un token aleatorio y se puede compartir por WhatsApp.
-4. En la puerta, selecciona el evento y escanea el QR o registra el ingreso manualmente.
-5. Las boletas compartidas usan `?boleta=<token>` y reciben sus asistencias y beneficios en tiempo real.
+1. Abre la aplicación mediante HTTPS y entra con una cuenta administradora autorizada.
+2. Confirma que la puerta muestre `Datos sincronizados` antes de registrar ingresos.
+3. Selecciona explícitamente el evento activo. La aplicación no selecciona eventos automáticamente para evitar registros en fechas equivocadas.
+4. Escanea el QR de ingreso o selecciona la persona para un ingreso manual. Cada persona solo puede tener un registro por evento.
+5. El QR rojo canjea un beneficio. Se registra su uso para impedir un segundo acceso en el mismo evento, pero no suma visitas ni marca un grano de café en el siguiente ciclo.
+6. Si la aplicación indica que está sin conexión o sincronizando, no registres ingresos: usa una lista manual temporal y regístralos cuando vuelva la conexión.
 
-## Publicar en GitHub Pages
+## Preparación Antes De Abrir Puertas
 
-1. Crea un repositorio en GitHub y sube `index.html`, `styles.css`, `app.js` y `README.md`.
-2. En el repositorio abre **Settings > Pages**.
-3. En **Build and deployment**, selecciona **Deploy from a branch**, la rama `main` y la carpeta `/(root)`.
-4. Guarda. GitHub mostrara la URL publica tras el despliegue.
+1. Crea el evento con fecha correcta y verifica que aparece en el selector.
+2. Prueba un QR regular, un QR de cortesía, un QR de beneficio y un registro manual desde dos teléfonos.
+3. Permite el acceso a la cámara del navegador del dispositivo de puerta.
+4. Lleva un segundo teléfono o computador administrador y una conexión de respaldo.
+5. No abras la consola en navegadores incrustados de WhatsApp o Instagram; usa Chrome, Safari o Firefox directamente.
 
-## Configuración de Firebase
+## Administración Y Seguridad
 
-1. En Firebase Console crea la base de datos **Cloud Firestore** en modo producción.
-2. En **Authentication > Sign-in method**, habilita Google y añade los dominios donde se hospeda la app en **Authorized domains**.
-3. Inicia sesión una vez con la cuenta que será administradora y copia su UID desde Authentication.
-4. Crea manualmente `admins/<UID>` en Firestore con cualquier campo, por ejemplo `{ "role": "admin" }`. La app no puede crear administradores.
-5. Instala Firebase CLI y publica las reglas incluidas con `firebase deploy --only firestore:rules` cuando estés listo. No uses reglas de prueba.
+1. Habilita **Email/Password** en Firebase Authentication.
+2. Crea las cuentas administrativas desde **Authentication > Users > Add user** en Firebase Console. La aplicación no permite registrar cuentas nuevas.
+3. Crea manualmente `admins/<UID>` en Firestore para cada cuenta autorizada, por ejemplo con `{ "role": "admin" }`.
+4. Añade el dominio de GitHub Pages en **Authentication > Settings > Authorized domains**.
+5. Configura Firebase App Check para el proyecto y activa presupuestos y alertas de Firestore antes de operar a gran escala.
 
-## Datos y seguridad
+## Despliegue
 
-Los datos operativos (`people`, `events`, `checkins` y `benefits`) solo pueden ser leídos o modificados por administradores autenticados. `tickets/{token}` contiene únicamente el nombre, tipo, total de visitas y beneficios vigentes necesarios para mostrar una boleta; no expone correo, teléfono, notas ni identificadores de persona. Las reglas permiten consultar un ticket por token, pero nunca listar tickets públicamente.
+GitHub Pages publica la rama `main` desde `/(root)`. Las reglas de Firestore se despliegan por separado:
+
+```powershell
+firebase deploy --only firestore:rules --project ticket-service-c2eac
+```
+
+El archivo `.firebaserc` ya fija `ticket-service-c2eac` como proyecto predeterminado. Verifica el resultado del despliegue en Firebase Console antes del evento.
+
+## Límites Operativos
+
+- Los ingresos requieren conexión para preservar la prevención de duplicados. La caché local sirve para mostrar información, no para confirmar ingresos offline.
+- Una boleta compartida por WhatsApp es un enlace personal reutilizable. El equipo de puerta debe verificar el nombre de la persona cuando sea necesario.
+- Los administradores tienen capacidad de eliminar personas, eventos y datos asociados. Restringe el acceso a cuentas de confianza.
