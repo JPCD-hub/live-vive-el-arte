@@ -33,7 +33,7 @@ body::before {
 }
 
 button, input, select, textarea { font: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; touch-action: manipulation; }
 a { color: inherit; text-decoration: none; }
 img { display: block; max-width: 100%; }
 
@@ -84,7 +84,7 @@ nav a {
   transition: color .15s;
 }
 
-nav a:hover { color: var(--red); }
+nav a:hover { color: var(--green); }
 
 .auth-actions {
   display: flex;
@@ -114,7 +114,7 @@ nav a:hover { color: var(--red); }
   white-space: nowrap;
 }
 
-.button:hover { transform: translateY(-2px); }
+.button:hover { transform: none; }
 .button-primary { color: var(--cream); background: var(--green); }
 .button-cream { background: var(--cream); color: var(--green); }
 .button-ghost { background: transparent; border-color: #d1e0d6; color: var(--cream); }
@@ -128,7 +128,7 @@ nav a:hover { color: var(--red); }
   letter-spacing: 1px;
 }
 
-.text-link:hover { color: var(--red); }
+.text-link:hover { color: var(--green); }
 
 .small-button {
   border: 0;
@@ -142,7 +142,7 @@ nav a:hover { color: var(--red); }
   text-transform: uppercase;
 }
 
-.small-button:hover { color: var(--red); }
+.small-button:hover { color: var(--green); }
 .small-button.delete { color: #9f2923; }
 .small-button.upgrade { color: var(--green); background: #e4d4ba; text-decoration: none; }
 
@@ -659,6 +659,8 @@ footer span {
   width: min(760px, calc(100vw - 20px));
   max-height: 94vh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   background: #f6eedf;
 }
 
@@ -948,7 +950,7 @@ footer span {
 .ticket-regular .reward-qr .qr { width: 94px; min-height: 94px; }
 
 /* ========== COURTESY TICKET ========== */
-.ticket-courtesy .ticket-art { width: min(100%, 80vh); margin: 0 auto; }
+.ticket-courtesy .ticket-art { width: min(100%, 720px); margin: 0 auto; }
 .ticket-courtesy .reference-stamp { width: 11%; }
 .ticket-courtesy .reference-stamp-1 { left: 54.5%; top: 53.85%; }
 .ticket-courtesy .reference-stamp-2 { left: 68.55%; top: 53.85%; }
@@ -986,6 +988,13 @@ footer span {
    ========================================== */
 @media (min-width: 700px) {
   .ticket-modal { width: min(760px, calc(100vw - 40px)); }
+}
+
+@media (hover: hover) {
+  .button:hover { transform: translateY(-2px); }
+  nav a:hover,
+  .small-button:hover,
+  .text-link:hover { color: var(--red); }
 }
 
 /* ==========================================
@@ -1042,7 +1051,20 @@ footer span {
   .modal-heading h2 { font-size: 22px; }
 
   /* ---- Ticket modal mobile ---- */
-  .ticket-modal { width: 100vw; max-height: 100vh; border-radius: 0; }
+  .ticket-modal {
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    height: 100vh;
+    max-height: none;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  @supports (height: 100dvh) {
+    .ticket-modal { height: 100dvh; }
+  }
   .ticket-close { top: 8px; right: 8px; width: 32px; height: 32px; font-size: 22px; color: var(--cream); background: var(--green); }
 
   /* Regular ticket mobile: image + info stacked vertically */
@@ -1082,8 +1104,14 @@ footer span {
   .ticket-regular .reward-qr { border: 2px solid var(--red); background: #fff8ea; }
   .ticket-regular .reward-qr .qr { width: 100%; min-height: 0; aspect-ratio: 1; }
 
-  /* Courtesy ticket mobile */
-  .ticket-courtesy .ticket-art { width: min(100%, 50vh); }
+  /* Courtesy ticket mobile: the horizontal template must use the viewport width,
+     not vh, otherwise it becomes too small when Android is in landscape. */
+  .ticket-courtesy .ticket-art { width: 100%; max-width: 720px; }
+  .ticket-courtesy .ticket-art > img { width: 100%; height: auto; object-fit: contain; }
+
+  .ticket-courtesy .ticket-personal { max-width: 720px; margin: 0 auto; }
+  .ticket-courtesy .ticket-codes { display: grid; grid-template-columns: minmax(130px, 160px); justify-content: center; }
+  .ticket-courtesy .ticket-qr-item { justify-items: center; padding: 10px; border: 1px solid #d8cdb9; background: #fff; }
 
   .ticket-personal {
     grid-template-columns: 1fr;
