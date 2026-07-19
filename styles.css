@@ -866,6 +866,13 @@ textarea:focus-visible {
 
 .qr > table { border-collapse: collapse; }
 
+.ticket-qr-item .qr > canvas,
+.ticket-qr-item .qr > img,
+.ticket-qr-item .qr > table {
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .ticket-type {
   display: inline-block;
   margin-left: 6px;
@@ -906,6 +913,8 @@ textarea:focus-visible {
 .ticket-qr-item {
   display: grid;
   gap: 6px;
+  min-width: 0;
+  justify-items: center;
   color: var(--green);
   font-size: 9px;
   font-weight: bold;
@@ -913,7 +922,14 @@ textarea:focus-visible {
   text-transform: uppercase;
 }
 
-.ticket-qr-item .qr { width: 100px; min-height: 100px; }
+.ticket-qr-item .qr {
+  display: grid;
+  width: min(116px, 100%);
+  min-height: 0;
+  padding: 0;
+  place-items: center;
+  aspect-ratio: 1;
+}
 
 .reward-qr {
   padding: 9px;
@@ -1117,7 +1133,7 @@ textarea:focus-visible {
 
   .ticket-regular .ticket-codes {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
     gap: 10px;
     margin-top: 14px;
     padding-top: 12px;
@@ -1134,9 +1150,9 @@ textarea:focus-visible {
   }
 
   .ticket-regular .ticket-qr-item span { font-size: 9px; }
-  .ticket-regular .ticket-qr-item .qr { width: 100%; min-height: 0; aspect-ratio: 1; }
+  .ticket-regular .ticket-qr-item .qr { width: min(116px, 100%); min-height: 0; aspect-ratio: 1; }
   .ticket-regular .reward-qr { border: 2px solid var(--red); background: #fff8ea; }
-  .ticket-regular .reward-qr .qr { width: 100%; min-height: 0; aspect-ratio: 1; }
+  .ticket-regular .reward-qr .qr { width: min(116px, 100%); min-height: 0; aspect-ratio: 1; }
 
   /* Courtesy ticket mobile: the horizontal template must use the viewport width,
      not vh, otherwise it becomes too small when Android is in landscape. */
