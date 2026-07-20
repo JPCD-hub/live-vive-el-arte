@@ -138,7 +138,7 @@ function renderTicket(ticket) {
   const container = $('#public-ticket-content');
   const { visits, courtesy, required, progress } = ticketProgress(ticket);
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
-  const article = create('article', undefined, 'digital-ticket');
+  const article = create('article', undefined, `digital-ticket ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}`);
   const grid = create('div', undefined, 'digital-ticket-grid');
   const art = create('div', undefined, 'digital-ticket-art');
   const image = document.createElement('img');
@@ -147,6 +147,7 @@ function renderTicket(ticket) {
   image.height = courtesy ? 1024 : 1440;
   image.alt = `Diseño de boleta ${courtesy ? 'de cortesía' : 'regular'} Live! Vive el Arte`;
   art.append(image);
+  for (let index = 0; index < required; index += 1) art.append(create('span', undefined, `ticket-art-stamp ticket-art-stamp-${index + 1}${index < progress ? ' active' : ''}`));
   const body = create('div', undefined, 'digital-ticket-body');
   const identity = document.createElement('div');
   identity.append(create('p', `BOLETA DIGITAL · ${courtesy ? 'CORTESÍA' : 'REGULAR'}`, 'ticket-type-label'));
@@ -161,10 +162,7 @@ function renderTicket(ticket) {
   const fill = create('span', undefined, 'progress-value');
   fill.style.width = `${(progress / required) * 100}%`;
   track.append(fill);
-  const stamps = create('div', undefined, 'ticket-stamps');
-  stamps.setAttribute('aria-hidden', 'true');
-  for (let index = 0; index < required; index += 1) stamps.append(create('span', undefined, `ticket-stamp${index < progress ? ' active' : ''}`));
-  progressBlock.append(track, stamps);
+  progressBlock.append(track);
   body.append(identity, progressBlock);
   if (benefits.length) body.append(create('p', `Beneficio disponible: ${benefits.map((item) => item.eventName).join(', ')}.`, 'ticket-benefit'));
   const qrArea = create('div', undefined, 'ticket-qr-area');
