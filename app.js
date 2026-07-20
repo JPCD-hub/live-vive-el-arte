@@ -56,16 +56,16 @@ let displayedPersonId = null;
 const libraryPromises = new Map();
 const TICKET_STAMP_LAYOUTS = {
   regular: [
-    { x: 49, y: 55, size: 15 },
-    { x: 61, y: 55, size: 15 },
-    { x: 73, y: 55, size: 15 },
-    { x: 49, y: 67, size: 15 },
-    { x: 61, y: 67, size: 15 },
+    { x: 49, y: 55, zoneSize: 15, maskSize: 70, beanWidth: 32, beanHeight: 48 },
+    { x: 61, y: 55, zoneSize: 15, maskSize: 70, beanWidth: 32, beanHeight: 48 },
+    { x: 73, y: 55, zoneSize: 15, maskSize: 70, beanWidth: 32, beanHeight: 48 },
+    { x: 49, y: 67, zoneSize: 15, maskSize: 70, beanWidth: 32, beanHeight: 48 },
+    { x: 61, y: 67, zoneSize: 15, maskSize: 70, beanWidth: 32, beanHeight: 48 },
   ],
   courtesy: [
-    { x: 60, y: 55, size: 11 },
-    { x: 72, y: 55, size: 11 },
-    { x: 83, y: 55, size: 11 },
+    { x: 60, y: 55, zoneSize: 11, maskSize: 70, beanWidth: 32, beanHeight: 48 },
+    { x: 72, y: 55, zoneSize: 11, maskSize: 70, beanWidth: 32, beanHeight: 48 },
+    { x: 83, y: 55, zoneSize: 11, maskSize: 70, beanWidth: 32, beanHeight: 48 },
   ],
 };
 
@@ -345,7 +345,7 @@ function renderTicket(container, ticket) {
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
   const renderId = ++ticketRenderNumber;
   const layout = courtesy ? TICKET_STAMP_LAYOUTS.courtesy : TICKET_STAMP_LAYOUTS.regular;
-  const statusStamps = layout.map((stamp, index) => `<span class="reference-stamp${index < completed ? ' active' : ''}" style="--stamp-x: ${stamp.x}%; --stamp-y: ${stamp.y}%; --stamp-size: ${stamp.size}%;" aria-label="Visita ${index + 1}${index < completed ? ' registrada' : ' pendiente'}" data-stamp-index="${index}"></span>`).join('');
+  const statusStamps = layout.map((stamp, index) => `<span class="reference-stamp${index < completed ? ' active' : ''}" style="--stamp-x: ${stamp.x}%; --stamp-y: ${stamp.y}%; --stamp-zone-size: ${stamp.zoneSize}%; --stamp-mask-size: ${stamp.maskSize}%; --stamp-bean-width: ${stamp.beanWidth}%; --stamp-bean-height: ${stamp.beanHeight}%;" aria-label="Visita ${index + 1}${index < completed ? ' registrada' : ' pendiente'}" data-stamp-index="${index}"></span>`).join('');
   const description = courtesy
     ? visits >= 3
       ? 'Las 3 cortesías ya fueron utilizadas. Esta boleta no admite más ingresos.'

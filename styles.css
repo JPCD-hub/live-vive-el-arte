@@ -699,9 +699,9 @@ textarea:focus-visible {
 
 /* ========== TICKET MODAL ========== */
 .ticket-modal {
-  width: min(1040px, calc(100vw - 40px));
-  max-height: min(92dvh, 900px);
-  overflow-y: auto;
+  width: min(1040px, calc(100vw - 32px));
+  max-height: 92dvh;
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   background: #f6eedf;
@@ -724,12 +724,17 @@ textarea:focus-visible {
 .ticket-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
   justify-content: center;
-  padding: 16px;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
   border-top: 1px solid var(--line);
 }
-.ticket-actions .button { flex: 0 1 auto; }
+.ticket-actions .button {
+  flex: 0 1 auto;
+  width: auto;
+  min-height: 44px;
+}
 
 /* ========== TICKET CONTENT ========== */
 .ticket {
@@ -746,25 +751,48 @@ textarea:focus-visible {
 .ticket-art > img {
   display: block;
   width: 100%;
+  height: auto;
+  object-fit: contain;
 }
 
 /* Reference stamps (coffee beans) */
 .reference-stamp {
   position: absolute;
   z-index: 1;
-  display: grid;
-  width: var(--stamp-size, 10%);
-  aspect-ratio: 1;
   left: var(--stamp-x);
   top: var(--stamp-y);
-  place-items: center;
-  border: 2px solid transparent;
+  width: var(--stamp-zone-size, 15%);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.reference-stamp::before {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--stamp-mask-size, 70%);
+  aspect-ratio: 1;
   border-radius: 50%;
-  color: var(--cream);
-  background: transparent;
-  font-size: 0;
+  background: #f4eddf;
+  content: "";
   transform: translate(-50%, -50%);
 }
+
+.reference-stamp.active::after {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--stamp-bean-width, 32%);
+  height: var(--stamp-bean-height, 48%);
+  border-radius: 50%;
+  background: linear-gradient(132deg, transparent 42%, #f4eddf 44%, #f4eddf 53%, transparent 55%), #4a2708;
+  content: "";
+  transform: translate(-50%, -50%) rotate(28deg);
+}
+
+.reference-stamp.animate-in { animation: stamp-in .4s ease-out; }
+@keyframes stamp-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.7) rotate(-8deg); } to { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); } }
 
 .reference-benefit {
   position: absolute;
@@ -783,38 +811,6 @@ textarea:focus-visible {
   font-weight: bold;
   letter-spacing: .3px;
 }
-
-.reference-stamp::before {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 70%;
-  height: 70%;
-  border-radius: 50%;
-  background: #f4eddf;
-  content: "";
-  transform: translate(-50%, -50%);
-}
-
-.reference-stamp.active {
-  border-color: transparent;
-  background: transparent;
-}
-
-.reference-stamp.active::after {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 32%;
-  height: 48%;
-  border-radius: 50%;
-  background: linear-gradient(132deg, transparent 42%, #f4eddf 44%, #f4eddf 53%, transparent 55%), #4a2708;
-  content: "";
-  transform: translate(-50%, -50%) rotate(28deg);
-}
-
-.reference-stamp.animate-in { animation: stamp-in .4s ease-out; }
-@keyframes stamp-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.7) rotate(-8deg); } to { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); } }
 
 /* Ticket personal info */
 .ticket-personal {
@@ -862,7 +858,6 @@ textarea:focus-visible {
   background: #fff;
 }
 
-/* qrcodejs renders a canvas in modern Android and a table/image in older engines. */
 .qr > canvas,
 .qr > img,
 .qr > table {
@@ -873,8 +868,6 @@ textarea:focus-visible {
 }
 
 .qr > table { border-collapse: collapse; }
-
-/* qrcodejs appends an image fallback after its canvas. Showing both stacks two QR codes. */
 .qr > canvas + img { display: none !important; }
 
 .ticket-qr-item .qr > canvas,
@@ -955,16 +948,11 @@ textarea:focus-visible {
 /* ========== REGULAR TICKET (2-column) ========== */
 .ticket-regular {
   display: grid;
-  grid-template-columns: minmax(300px, 42%) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 44%) minmax(0, 1fr);
   align-items: start;
 }
 
-.ticket-regular .ticket-art {
-  width: 100%;
-  margin: 0;
-}
-
-.ticket-regular .reference-stamp { width: var(--stamp-size, 15%); }
+.ticket-regular .ticket-art { width: 100%; margin: 0; }
 
 .ticket-regular .ticket-personal {
   display: grid;
@@ -999,10 +987,9 @@ textarea:focus-visible {
 .ticket-regular .reward-qr .qr { width: 94px; height: 94px; min-height: 0; }
 
 /* ========== COURTESY TICKET ========== */
-.ticket-courtesy { display: grid; grid-template-columns: 1fr; }
+.ticket-courtesy { display: block; }
 .ticket-courtesy .ticket-art { width: 100%; margin: 0; }
-.ticket-courtesy .reference-stamp { width: var(--stamp-size, 11%); }
-.ticket-courtesy .reference-stamp.active { border-width: 4px; }
+.ticket-courtesy .ticket-personal { border-top: 5px solid var(--green); }
 
 /* ========== PUBLIC TICKET ========== */
 .public-ticket {
@@ -1111,13 +1098,12 @@ textarea:focus-visible {
 
   @supports (height: 100dvh) {
     .ticket-modal { height: 100dvh; }
-    .form-modal { max-height: calc(100dvh - 16px); }
   }
   .ticket-close { top: 8px; right: 8px; width: 32px; height: 32px; font-size: 22px; color: var(--cream); background: var(--green); }
 
-  /* Regular ticket mobile: image + info stacked vertically */
-  .ticket-regular { display: flex; flex-direction: column; }
-  .ticket-regular .ticket-art { width: 100%; margin: 0 auto; flex-shrink: 0; }
+  /* Regular ticket mobile: single column */
+  .ticket-regular { display: grid; grid-template-columns: 1fr; }
+  .ticket-regular .ticket-art { width: 100%; }
 
   .ticket-regular .ticket-personal {
     grid-template-columns: 1fr;
@@ -1152,11 +1138,8 @@ textarea:focus-visible {
   .ticket-regular .reward-qr { border: 2px solid var(--red); background: #fff8ea; }
   .ticket-regular .reward-qr .qr { width: clamp(70px, 28vw, 116px); height: clamp(70px, 28vw, 116px); min-height: 0; aspect-ratio: 1; }
 
-  /* Courtesy ticket mobile: full width, horizontal image fills the viewport */
-  .ticket-courtesy .ticket-art { width: 100%; }
+  /* Courtesy ticket: display:block already makes it stack vertically */
   .ticket-courtesy .ticket-art > img { width: 100%; height: auto; object-fit: contain; }
-
-  .ticket-courtesy .ticket-personal { margin: 0 auto; }
   .ticket-courtesy .ticket-codes { display: grid; grid-template-columns: minmax(130px, 160px); justify-content: center; }
   .ticket-courtesy .ticket-qr-item { justify-items: center; padding: 10px; border: 1px solid #d8cdb9; background: #fff; }
   .ticket-courtesy .ticket-qr-item .qr { width: clamp(70px, 28vw, 116px); height: clamp(70px, 28vw, 116px); min-height: 0; }
@@ -1222,11 +1205,10 @@ textarea:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .reference-stamp.animate-in { animation: none !important; opacity: 1 !important; }
-  .reference-stamp, .reference-stamp::before, .reference-stamp::after { transition: none !important; }
 }
 
 .debug-stamps .ticket-art { outline: 2px dashed red; }
-.debug-stamps .reference-stamp { outline: 1px solid lime; background: rgba(0, 255, 0, .15); }
-.debug-stamps .reference-stamp::before { outline: 1px solid cyan; width: 70%; height: 70%; }
-.debug-stamps .reference-stamp::after { position: absolute; top: 50%; left: 50%; width: auto; height: auto; border-radius: 0; background: rgba(255,255,255,.85); transform: translate(-50%, -50%); font-size: 10px; color: red; padding: 1px 3px; content: attr(data-stamp-index); }
-.debug-stamps .reference-stamp.active::after { content: "" !important; width: 32%; height: 48%; border-radius: 50%; background: linear-gradient(132deg, transparent 42%, #f4eddf 44%, #f4eddf 53%, transparent 55%), #4a2708; }
+.debug-stamps .reference-stamp { outline: 1px solid lime; background: rgba(0, 255, 0, .15); pointer-events: auto; }
+.debug-stamps .reference-stamp::before { outline: 1px solid cyan; }
+.debug-stamps .reference-stamp::after { content: attr(data-stamp-index) !important; position: absolute; left: 50%; top: auto; bottom: -18px; width: auto; height: auto; border-radius: 0; background: rgba(255,255,255,.85); transform: translateX(-50%); font-size: 10px; color: red; padding: 1px 3px; white-space: nowrap; }
+.debug-stamps .reference-stamp.active::after { content: "" !important; left: 50%; top: 50%; bottom: auto; width: var(--stamp-bean-width, 32%); height: var(--stamp-bean-height, 48%); border-radius: 50%; background: linear-gradient(132deg, transparent 42%, #f4eddf 44%, #f4eddf 53%, transparent 55%), #4a2708; transform: translate(-50%, -50%) rotate(28deg); }
