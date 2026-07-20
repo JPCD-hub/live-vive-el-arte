@@ -2,6 +2,8 @@
 
 Aplicación web para administrar boletas virtuales, QR y asistencias en tiempo real durante los eventos de Live! Vive el Arte.
 
+La portada pública está en `./`; la administración protegida está en `./admin/`. Consulta `IMPLEMENTATION_NOTES.md` para la arquitectura, PWA, variables públicas y procedimientos operativos.
+
 ## Operación En El Evento
 
 1. Abre la aplicación mediante HTTPS y entra con una cuenta administradora autorizada.

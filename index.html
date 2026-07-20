@@ -4,156 +4,103 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#003c2d" />
-    <title>Live! | Vuelve al arte</title>
     <meta name="color-scheme" content="light" />
-    <link rel="stylesheet" href="styles.css?v=27" />
+    <meta name="description" content="Participa en los eventos culturales de Live!, registra tus visitas con tu boleta digital y desbloquea beneficios por volver." />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href="https://jpcd-hub.github.io/live-vive-el-arte/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_CO" />
+    <meta property="og:title" content="Live! Vive el Arte | Eventos y beneficios culturales" />
+    <meta property="og:description" content="Participa en los eventos culturales de Live!, registra tus visitas con tu boleta digital y desbloquea beneficios por volver." />
+    <meta property="og:url" content="https://jpcd-hub.github.io/live-vive-el-arte/" />
+    <meta property="og:image" content="https://jpcd-hub.github.io/live-vive-el-arte/assets/social-live.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Live! Vive el Arte | Eventos y beneficios culturales" />
+    <meta name="twitter:description" content="Eventos culturales, boleta digital y beneficios por volver." />
+    <meta name="twitter:image" content="https://jpcd-hub.github.io/live-vive-el-arte/assets/social-live.svg" />
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="assets/icon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <title>Live! Vive el Arte | Eventos y beneficios culturales</title>
+    <link rel="stylesheet" href="public.css?v=1" />
+    <script type="application/ld+json">
+      {"@context":"https://schema.org","@type":"Organization","name":"Live! Vive el Arte","url":"https://jpcd-hub.github.io/live-vive-el-arte/"}
+    </script>
   </head>
-  <body>
-    <header class="topbar">
-      <a class="brand" href="#inicio" aria-label="Live! inicio">
-        <span class="brand-live">Live<span>!</span></span>
-        <span>Podcast · Cafe · Bar</span>
-      </a>
-      <nav id="admin-nav" aria-label="Navegacion principal" hidden>
-        <a href="#personas">Personas</a>
-        <a href="#ingresos">Ingresos</a>
-        <a href="#eventos">Eventos</a>
-      </nav>
-      <div class="auth-actions"><span id="auth-status" class="auth-status">Verificando acceso...</span><button id="sign-in" class="button button-outline" type="button" hidden>Acceso admin</button><button id="sign-out" class="small-button" type="button" hidden>Salir</button></div>
+  <body data-page="public">
+    <a class="skip-link" href="#main-content">Saltar al contenido</a>
+    <header class="site-header">
+      <a class="site-brand" href="./" aria-label="Live! Vive el Arte, inicio"><span>Live<span>!</span></span><small>Podcast · Café · Bar</small></a>
+      <nav aria-label="Navegación principal"><a href="#como-funciona">Cómo funciona</a><a href="#eventos">Eventos</a><a href="#boleta">Mi boleta</a></nav>
     </header>
 
-    <section id="public-ticket-view" class="public-ticket" hidden>
-      <div class="public-ticket-heading"><p class="eyebrow">LIVE! VIVE EL ARTE</p><h1>Tu boleta</h1><p id="public-ticket-status" class="muted" aria-live="polite"></p></div>
-      <div id="public-ticket-content"></div>
-    </section>
-    <section id="public-message" class="public-message">
-      <div class="public-message-copy"><p class="eyebrow">LIVE! VIVE EL ARTE</p><h1>Tu boleta, siempre contigo.</h1><p>Abre el enlace personal que recibiste por WhatsApp para consultar tu boleta y sus asistencias en tiempo real.</p></div>
-      <div class="public-message-preview"><img src="Boleta%202.jpeg" alt="Boleta regular Live Vive el Arte" /><span>ACTUALIZADA EN VIVO</span></div>
-    </section>
-
-    <main id="admin-app" hidden>
-      <section class="hero">
-        <div>
-          <p class="eyebrow">VIVE EL <i>Arte</i></p>
-          <h1>Una comunidad que vuelve.</h1>
-          <p class="hero-copy">Registra visitas, entrega una boleta digital personalizada y reconoce a quienes hacen parte de cada encuentro.</p>
-          <div class="hero-actions">
-            <a class="button button-primary" href="#personas">Registrar persona</a>
-            <a class="text-link" href="#ingresos">Registrar ingreso</a>
-          </div>
+    <main id="main-content" tabindex="-1">
+      <section id="inicio" class="public-hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="section-kicker">LIVE! PODCAST · CAFÉ · BAR</p>
+          <h1 id="hero-title">Vive el <i>Arte</i></h1>
+          <p class="hero-lead">Cada encuentro cuenta.</p>
+          <p>Participa en los eventos culturales de Live!, registra tus visitas con tu boleta digital y desbloquea beneficios por volver.</p>
+          <div class="hero-actions"><a class="button button-primary" href="#eventos">Ver próximos eventos</a><a class="button button-secondary" href="#boleta">Abrir mi boleta</a></div>
         </div>
-        <div class="hero-card" aria-label="Boleta Vive el Arte">
-          <img src="Boleta%202.jpeg" alt="Boleta regular Vive el Arte" />
-          <span>BASE DIGITAL</span>
-        </div>
+        <figure class="hero-ticket"><img src="Boleta%202.jpeg" width="1080" height="1440" alt="Diseño de la boleta digital Live! Vive el Arte" fetchpriority="high" /><figcaption>Una comunidad que vuelve.</figcaption></figure>
       </section>
 
-      <section class="stats" aria-label="Indicadores">
-        <article><span>PERSONAS</span><strong id="total-people">0</strong></article>
-        <article><span>EVENTOS</span><strong id="total-events">0</strong></article>
-        <article><span>BENEFICIOS</span><strong id="total-benefits">0</strong></article>
+      <section id="como-funciona" class="content-section how-section" aria-labelledby="how-title">
+        <div class="section-heading"><p class="section-kicker">TU RECORRIDO</p><h2 id="how-title">¿Cómo funciona?</h2></div>
+        <ol class="steps-list">
+          <li><span class="step-icon" aria-hidden="true">01</span><h3>Asiste a un evento</h3><p>Encuentra un miércoles para compartir, escuchar y conectar.</p></li>
+          <li><span class="step-icon" aria-hidden="true">02</span><h3>Presenta tu código QR</h3><p>En la entrada registramos tu visita en tu boleta digital.</p></li>
+          <li><span class="step-icon" aria-hidden="true">03</span><h3>Vuelve y recibe beneficios</h3><p>Tu progreso se actualiza en tiempo real después de cada encuentro.</p></li>
+        </ol>
       </section>
 
-      <section class="workspace" id="personas">
-        <div class="section-heading">
-          <div><p class="eyebrow">COMUNIDAD</p><h2>Personas registradas</h2></div>
-          <button class="button button-primary" type="button" data-open="person-form">Nueva persona</button>
-        </div>
-        <div class="toolbar">
-          <label class="search"><span>Buscar</span><input id="person-search" type="search" placeholder="Nombre, correo o telefono" /></label>
-          <p id="people-count" class="muted">0 personas</p>
-        </div>
-        <div id="people-list" class="people-list"></div>
-        <div id="empty-people" class="empty-state">
-          <b>Aun no hay personas registradas.</b>
-          <span>Crea el primer perfil para generar su boleta con QR.</span>
-        </div>
+      <section class="benefits-section" aria-labelledby="benefits-title">
+        <div><p class="section-kicker">RECONOCEMOS TU REGRESO</p><h2 id="benefits-title">Las visitas abren nuevas experiencias.</h2></div>
+        <p>Con una boleta regular, al completar cinco asistencias recibes un beneficio para un evento posterior. Los beneficios pueden cambiar según la programación y los eventos activos.</p>
       </section>
 
-      <section class="checkin-section" id="ingresos">
-        <div class="section-heading light-heading">
-          <div><p class="eyebrow">PUERTA DE ENTRADA</p><h2>Registrar ingreso</h2></div>
-          <p>Escanea el QR o busca a la persona.</p>
-        </div>
-        <div class="checkin-grid">
-          <article class="checkin-card">
-            <label>Evento activo
-              <select id="active-event" aria-describedby="connection-status"></select>
-            </label>
-            <p id="connection-status" class="connection-status" role="status" aria-live="polite">Verificando conexión...</p>
-            <div class="scan-actions">
-              <button id="start-scanner" class="button button-cream" type="button">Escanear QR</button>
-              <button id="stop-scanner" class="button button-ghost" type="button" hidden>Detener camara</button>
-            </div>
-            <div id="qr-reader" hidden></div>
-            <p class="scan-note">Al escanear se registra una asistencia para el evento seleccionado.</p>
-          </article>
-          <article class="checkin-card manual-checkin">
-            <label>Ingreso manual
-              <select id="manual-person"><option value="">Selecciona una persona</option></select>
-            </label>
-            <button id="manual-checkin" class="button button-cream" type="button">Confirmar ingreso</button>
-            <p id="checkin-feedback" class="feedback" aria-live="polite"></p>
-          </article>
-        </div>
+      <section id="eventos" class="content-section events-section" aria-labelledby="events-title">
+        <div class="section-heading"><div><p class="section-kicker">AGENDA</p><h2 id="events-title">Próximos encuentros</h2></div><p id="public-events-status" class="status-text" role="status" aria-live="polite">Consultando la programación...</p></div>
+        <div id="public-events" class="public-events" aria-live="polite"></div>
       </section>
 
-      <section class="workspace" id="eventos">
-        <div class="section-heading">
-          <div><p class="eyebrow">AGENDA</p><h2>Eventos</h2></div>
-          <button class="button button-primary" type="button" data-open="event-form">Nuevo evento</button>
-        </div>
-        <div id="event-list" class="event-list"></div>
+      <section id="boleta" class="ticket-access" aria-labelledby="ticket-access-title">
+        <div><p class="section-kicker">TU ENLACE PERSONAL</p><h2 id="ticket-access-title">Abre tu boleta</h2><p>Pega el enlace que recibiste por WhatsApp o escribe el código completo de tu boleta.</p></div>
+        <form id="ticket-access-form" novalidate>
+          <label for="ticket-access-input">Enlace o código de boleta</label>
+          <div class="ticket-access-controls"><input id="ticket-access-input" name="ticket" inputmode="url" autocomplete="off" placeholder="Pega aquí tu enlace personal" aria-describedby="ticket-access-help" required /><button class="button button-primary" type="submit">Abrir boleta</button></div>
+          <p id="ticket-access-help" class="form-help">Esta boleta es personal. Evita compartir este enlace.</p>
+          <p id="ticket-access-feedback" class="form-feedback" role="status" aria-live="polite"></p>
+        </form>
       </section>
 
-      <section class="data-section">
-        <div><p class="eyebrow">BASE EN TIEMPO REAL</p><h2>Datos compartidos y protegidos</h2><p>La operación se guarda en Firestore. Solo las cuentas incluidas en la colección de administradores pueden consultar o modificar estos datos.</p></div>
+      <section id="public-ticket-view" class="ticket-page" hidden aria-labelledby="ticket-page-title">
+        <div class="ticket-page-heading"><p class="section-kicker">LIVE! VIVE EL ARTE</p><h1 id="ticket-page-title">Tu boleta</h1><p id="public-ticket-status" class="status-text" role="status" aria-live="polite">Cargando tu boleta...</p></div>
+        <div id="public-ticket-content"></div>
+      </section>
+
+      <section id="ubicacion" class="content-section contact-section" aria-labelledby="contact-title">
+        <div><p class="section-kicker">ENCUÉNTRANOS</p><h2 id="contact-title">Live! Podcast Café Bar</h2><p id="public-address">La información de ubicación se comparte con cada programación.</p></div>
+        <div id="public-contact-actions" class="contact-actions" hidden></div>
+      </section>
+
+      <section class="content-section faq-section" aria-labelledby="faq-title">
+        <div class="section-heading"><p class="section-kicker">PREGUNTAS FRECUENTES</p><h2 id="faq-title">Lo esencial antes de llegar</h2></div>
+        <details><summary>¿La boleta tiene algún costo?</summary><p>La boleta digital se entrega según la dinámica de cada encuentro. Consulta la programación y al equipo Live! para conocer las condiciones vigentes.</p></details>
+        <details><summary>¿Cómo registro una visita?</summary><p>Presenta el QR de tu boleta al llegar. El equipo registra una visita para el evento activo.</p></details>
+        <details><summary>¿Qué pasa si pierdo el enlace?</summary><p>Solicita al equipo Live! que regenere tu boleta. El enlace anterior dejará de funcionar para protegerla.</p></details>
+        <details><summary>¿Puedo compartir mi boleta?</summary><p>No. La boleta es personal y el enlace permite consultar su progreso. Evita reenviarlo.</p></details>
+        <details><summary>¿Cómo obtengo un beneficio?</summary><p>Una boleta regular acumula cinco asistencias. Al completarlas, recibirás un beneficio para el evento indicado.</p></details>
       </section>
     </main>
 
-    <footer>LIVE! PODCAST · CAFE · BAR <span>Vive el arte.</span></footer>
-
-    <dialog id="person-form" class="modal form-modal">
-      <form id="new-person-form" method="dialog">
-        <div class="modal-heading"><div><p class="eyebrow">NUEVO PERFIL</p><h2>Registrar persona</h2></div><button class="icon-button" value="cancel" formnovalidate aria-label="Cerrar">×</button></div>
-        <label>Nombre completo<input id="person-name" name="name" required maxlength="80" autocomplete="name" /></label>
-        <label>Tipo de boleta<select id="person-ticket-type" name="ticketType"><option value="regular">Regular · 5 asistencias y beneficio</option><option value="courtesy">Cortesía · válida por 3 miércoles</option></select></label>
-        <label>Correo electronico<input id="person-email" name="email" type="email" maxlength="120" autocomplete="email" /></label>
-        <label>Telefono<input id="person-phone" name="phone" type="tel" maxlength="30" autocomplete="tel" /></label>
-        <label>Nota (opcional)<textarea id="person-note" name="note" maxlength="240"></textarea></label>
-        <div class="form-actions"><button class="button button-outline" type="submit" value="cancel" formnovalidate>Cancelar</button><button class="button button-primary" type="submit" value="default">Crear boleta</button></div>
-      </form>
-    </dialog>
-
-    <dialog id="event-form" class="modal form-modal">
-      <form id="new-event-form" method="dialog">
-        <div class="modal-heading"><div><p class="eyebrow">NUEVO ENCUENTRO</p><h2>Crear evento</h2></div><button class="icon-button" value="cancel" formnovalidate aria-label="Cerrar">×</button></div>
-        <label>Nombre del evento<input id="event-name" name="name" required maxlength="100" /></label>
-        <label>Fecha<input id="event-date" name="date" type="date" required /></label>
-        <label>Descripcion (opcional)<textarea id="event-description" name="description" maxlength="240"></textarea></label>
-        <div class="form-actions"><button class="button button-outline" type="submit" value="cancel" formnovalidate>Cancelar</button><button class="button button-primary" type="submit" value="default">Guardar evento</button></div>
-      </form>
-    </dialog>
-
-    <dialog id="ticket-modal" class="modal ticket-modal">
-      <button id="close-ticket" class="icon-button ticket-close" type="button" aria-label="Cerrar">×</button>
-      <div id="ticket-content"></div>
-      <div class="ticket-actions"><button id="share-ticket" class="button button-primary" type="button">Enviar por WhatsApp</button></div>
-    </dialog>
-
-    <dialog id="auth-form" class="modal form-modal">
-      <form id="admin-auth-form" method="dialog">
-        <div class="modal-heading"><div><p class="eyebrow">ACCESO PROTEGIDO</p><h2>Administración</h2></div><button class="icon-button" value="cancel" formnovalidate aria-label="Cerrar">×</button></div>
-        <p class="auth-help">Inicia sesión con una cuenta autorizada por Live! para administrar eventos, QR y asistencias.</p>
-        <label>Correo electrónico<input id="admin-email" type="email" required autocomplete="email" /></label>
-        <label>Contraseña<input id="admin-password" type="password" required minlength="6" autocomplete="current-password" /></label>
-        <p id="auth-feedback" class="feedback" aria-live="polite"></p>
-        <div class="form-actions"><button class="button button-outline" type="submit" value="cancel" formnovalidate>Cancelar</button><button class="button button-primary" type="submit" value="signin">Entrar</button></div>
-      </form>
-    </dialog>
-
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-    <script type="module" src="app.js?v=11"></script>
+    <footer class="site-footer">
+      <div><strong>Live! Vive el Arte</strong><span>Podcast · Café · Bar</span></div>
+      <div class="footer-links"><a href="#ubicacion">Contacto</a><a href="#boleta">Mi boleta</a><a href="admin/">Acceso administrativo</a></div>
+      <p>© <span id="current-year"></span> Live! Vive el Arte. Esta boleta es personal y su enlace debe cuidarse.</p>
+    </footer>
+    <button id="install-app" class="install-button" type="button" hidden>Instalar aplicación</button>
+    <script type="module" src="public.js?v=1"></script>
   </body>
 </html>

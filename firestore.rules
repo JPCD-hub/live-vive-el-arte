@@ -30,7 +30,7 @@ service cloud.firestore {
 
     function validPerson(data) {
       return data.keys().hasAll(['name', 'ticketType', 'email', 'phone', 'note', 'ticketToken'])
-        && data.keys().hasOnly(['name', 'ticketType', 'email', 'phone', 'note', 'ticketToken', 'createdAt', 'upgradedAt'])
+        && data.keys().hasOnly(['name', 'ticketType', 'email', 'phone', 'note', 'ticketToken', 'createdAt', 'upgradedAt', 'ticketRegeneratedAt'])
         && data.name is string
         && isTicketType(data.ticketType)
         && data.email is string
@@ -38,18 +38,21 @@ service cloud.firestore {
         && data.note is string
         && isToken(data.ticketToken)
         && (!data.keys().hasAny(['createdAt']) || data.createdAt is timestamp)
-        && (!data.keys().hasAny(['upgradedAt']) || data.upgradedAt is timestamp);
+        && (!data.keys().hasAny(['upgradedAt']) || data.upgradedAt is timestamp)
+        && (!data.keys().hasAny(['ticketRegeneratedAt']) || data.ticketRegeneratedAt is timestamp);
     }
 
     function validEvent(data) {
       return data.keys().hasAll(['name', 'date', 'description', 'createdAt'])
-        && data.keys().hasOnly(['name', 'date', 'description', 'createdAt'])
+        && data.keys().hasOnly(['name', 'date', 'time', 'location', 'description', 'createdAt', 'updatedAt'])
         && data.name is string
         && data.date is string
         && data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && data.description is string
+        && (!data.keys().hasAny(['time']) || data.time is string)
+        && (!data.keys().hasAny(['location']) || data.location is string)
         && data.createdAt is timestamp
-        && data.createdAt == request.time;
+        && (!data.keys().hasAny(['updatedAt']) || data.updatedAt is timestamp);
     }
 
     function validCheckin(data, checkinId) {
@@ -108,18 +111,24 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll(['createdAt'])
         && request.resource.data.createdAt == request.time;
       allow update: if isAdmin() && validPerson(request.resource.data)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ticketType', 'ticketToken', 'upgradedAt'])
-        && resource.data.ticketType == 'courtesy'
-        && request.resource.data.ticketType == 'regular'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ticketType', 'ticketToken', 'upgradedAt', 'ticketRegeneratedAt'])
         && request.resource.data.ticketToken != resource.data.ticketToken
-        && request.resource.data.upgradedAt == request.time;
+        && ((resource.data.ticketType == 'courtesy'
+          && request.resource.data.ticketType == 'regular'
+          && request.resource.data.upgradedAt == request.time)
+          || (resource.data.ticketType == request.resource.data.ticketType
+            && request.resource.data.ticketRegeneratedAt == request.time));
       allow delete: if isAdmin();
     }
 
     match /events/{eventId} {
-      allow read: if isAdmin();
-      allow create: if isAdmin() && validEvent(request.resource.data);
-      allow update: if false;
+      allow get, list: if true;
+      allow create: if isAdmin() && validEvent(request.resource.data)
+        && request.resource.data.createdAt == request.time;
+      allow update: if isAdmin() && validEvent(request.resource.data)
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'date', 'time', 'location', 'description', 'updatedAt'])
+        && request.resource.data.updatedAt == request.time;
       allow delete: if isAdmin();
     }
 
@@ -140,7 +149,9 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/events/$(request.resource.data.qualifyingEventId))
         && (request.resource.data.eventId == null || exists(/databases/$(database)/documents/events/$(request.resource.data.eventId)));
       allow update: if isAdmin() && validBenefit(request.resource.data, benefitId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['eventId', 'eventName', 'pending', 'usedAt'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['eventId', 'eventName', 'pending', 'usedAt', 'ticketToken', 'token'])
+        && isToken(request.resource.data.ticketToken)
+        && (request.resource.data.token == resource.data.token || (resource.data.usedAt == null && isToken(request.resource.data.token)))
         && (request.resource.data.usedAt == resource.data.usedAt
           || (resource.data.usedAt == null && request.resource.data.usedAt == request.time))
         && (request.resource.data.eventId == null || exists(/databases/$(database)/documents/events/$(request.resource.data.eventId)));

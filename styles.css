@@ -36,6 +36,8 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; touch-action: manipulation; }
 a { color: inherit; text-decoration: none; }
 img { display: block; max-width: 100%; }
+.skip-link { position: fixed; z-index: 30; top: 8px; left: 8px; padding: 10px 14px; color: var(--cream); background: var(--green); transform: translateY(-160%); }
+.skip-link:focus { transform: translateY(0); }
 
 /* ========== TOPBAR ========== */
 .topbar {
@@ -574,6 +576,7 @@ h2 {
   top: 12px;
   right: 12px;
 }
+.event-edit { position: absolute; top: 12px; right: 72px; }
 
 /* ========== DATA SECTION ========== */
 .data-section {
@@ -610,6 +613,7 @@ footer span {
   font-weight: normal;
   letter-spacing: 0;
 }
+footer a { display: inline-block; margin-left: 16px; color: var(--cream); text-decoration: underline; text-underline-offset: 4px; }
 
 /* ========== MODALS ========== */
 .modal {

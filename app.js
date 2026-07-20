@@ -9,7 +9,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  enableMultiTabIndexedDbPersistence,
   getDoc,
   getDocs,
   getFirestore,
@@ -37,7 +36,6 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const BENEFIT_VISITS = 5;
 const APP_NAME = 'live-vive-el-arte';
-const publicTicketToken = new URLSearchParams(window.location.search).get('boleta');
 const state = { people: [], events: [], checkins: [], benefits: [], tickets: new Map() };
 const $ = (selector) => document.querySelector(selector);
 let scanner = null;
@@ -52,7 +50,9 @@ const submittingForms = new WeakSet();
 let entryInFlight = false;
 let scannerStarting = false;
 let scannerDecoding = false;
-let offlineCacheAvailable = true;
+let offlineCacheAvailable = false;
+let displayedPersonId = null;
+const libraryPromises = new Map();
 
 function localDate() {
   const now = new Date();
@@ -118,6 +118,8 @@ async function submitEntry(operation, ignoreDecodeLock = false) {
   updateEntryControls();
   try {
     await operation();
+  } catch (error) {
+    reportOperationError(error);
   } finally {
     entryInFlight = false;
     updateEntryControls();
@@ -127,6 +129,40 @@ function randomToken() {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function loadLibrary(url, globalName) {
+  if (window[globalName]) return Promise.resolve(window[globalName]);
+  if (libraryPromises.has(url)) return libraryPromises.get(url);
+  const promise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = url;
+    script.async = true;
+    script.onload = () => window[globalName] ? resolve(window[globalName]) : reject(new Error(`${globalName} no se cargó.`));
+    script.onerror = () => reject(new Error(`No se pudo cargar ${globalName}.`));
+    document.head.append(script);
+  });
+  libraryPromises.set(url, promise);
+  promise.catch(() => libraryPromises.delete(url));
+  return promise;
+}
+function ticketArtUrl(courtesy) { return new URL(courtesy ? 'boleta 1.jpeg' : 'Boleta 2.jpeg', import.meta.url).href; }
+function ticketTokenFromValue(value) {
+  const text = value.trim();
+  if (/^[A-Za-z0-9_-]{43}$/.test(text)) return text;
+  try {
+    const url = new URL(text);
+    const token = url.searchParams.get('boleta');
+    return token && /^[A-Za-z0-9_-]{43}$/.test(token) ? token : null;
+  } catch (_) { return null; }
+}
+function payloadFromValue(value) {
+  const token = ticketTokenFromValue(value);
+  if (token) return { app: APP_NAME, ticketToken: token };
+  try {
+    const payload = JSON.parse(value);
+    if (!payload || typeof payload !== 'object') userError('Pega un enlace de boleta, un token válido o el contenido completo del QR.');
+    return payload;
+  } catch (_) { userError('Pega un enlace de boleta, un token válido o el contenido completo del QR.'); }
 }
 function checkinRef(eventId, personId) { return doc(db, 'checkins', `${eventId}_${personId}`); }
 function benefitRef(personId, visitNumber) { return doc(db, 'benefits', `${personId}_${visitNumber}`); }
@@ -150,7 +186,6 @@ function authErrorMessage(error) {
 }
 
 function updateAccessUi(user = auth.currentUser) {
-  const hasTicket = Boolean(publicTicketToken);
   $('#admin-app').hidden = !isAdmin;
   $('#admin-nav').hidden = !isAdmin;
   $('#sign-in').hidden = Boolean(user);
@@ -160,8 +195,6 @@ function updateAccessUi(user = auth.currentUser) {
     : user
       ? `Esta cuenta aún no tiene acceso de administración. ID: ${user.uid}`
       : authIssue || 'Consulta tu boleta con su enlace personal.';
-  $('#public-ticket-view').hidden = !hasTicket;
-  $('#public-message').hidden = hasTicket || isAdmin;
 }
 
 function stopOperationalListeners() {
@@ -237,13 +270,13 @@ function renderPeople() {
     const progress = isCourtesy(person) ? visits : visits % BENEFIT_VISITS;
     const label = isCourtesy(person) ? 'visitas' : 'ciclo';
     const upgrade = isCourtesy(person) && visits >= 3 ? `<button class="small-button upgrade" data-upgrade-person="${person.id}">Pasar a regular</button>` : '';
-    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${progress}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} ${label}</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button>${upgrade}<button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
+    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${progress}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} ${label}</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button><button class="small-button" data-regenerate-ticket="${person.id}">Regenerar enlace</button>${upgrade}<button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
   }).join('');
 }
 function renderEvents() {
   $('#event-list').innerHTML = sortedEvents().reverse().map((event) => {
     const attendances = state.checkins.filter((item) => item.eventId === event.id).length;
-    return `<article class="event-card"><button class="small-button delete event-delete" data-delete-event="${event.id}">Eliminar</button><span class="event-date">${formatDate(event.date)}</span><h3>${escapeHtml(event.name)}</h3><p>${escapeHtml(event.description || 'Sin descripción.')}</p><span class="event-attendance">${attendances} ingresos</span></article>`;
+    return `<article class="event-card"><button class="small-button delete event-delete" data-delete-event="${event.id}">Eliminar</button><button class="small-button event-edit" data-edit-event="${event.id}">Editar</button><span class="event-date">${formatDate(event.date)}${event.time ? ` · ${escapeHtml(event.time)}` : ''}</span><h3>${escapeHtml(event.name)}</h3><p>${escapeHtml(event.description || 'Sin descripción.')}</p><span class="event-attendance">${attendances} ingresos</span></article>`;
   }).join('');
 }
 function renderSelects() {
@@ -276,10 +309,19 @@ function renderTicket(container, ticket) {
         : `${cycleVisits(ticket)} de ${BENEFIT_VISITS} asistencias en el ciclo actual · ${visits} en total.`;
   const benefitMarkup = benefits.map((benefit, index) => `<div class="ticket-qr-item reward-qr"><span>BENEFICIO · ${escapeHtml(benefit.eventName)}</span><div id="benefit-qr-${renderId}-${index}" class="qr" aria-label="QR de beneficio para ${escapeHtml(benefit.eventName)}"></div></div>`).join('');
   const upgradeNote = courtesy && visits >= 3 ? '<p class="ticket-upgrade-note">¿Quieres seguir asistiendo? Solicita al equipo Live! tu nueva boleta regular.</p>' : '';
-  container.innerHTML = `<article class="ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}"><div class="ticket-art"><img src="${courtesy ? 'boleta%201.jpeg' : 'Boleta%202.jpeg'}" alt="Boleta ${ticketLabel(ticket)} Vive el Arte" />${statusStamps}</div><section class="ticket-personal"><div><p class="ticket-label">BOLETA VIRTUAL · ${ticketLabel(ticket).toUpperCase()}</p><p class="ticket-person">${escapeHtml(ticket.name)}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${ticket.id.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${description}</p>${upgradeNote}</div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div id="ticket-qr-${renderId}" class="qr" aria-label="Código QR de ${escapeHtml(ticket.name)}"></div></div>${benefitMarkup}</div></section></article>`;
-  new QRCode($(`#ticket-qr-${renderId}`), { text: JSON.stringify({ app: APP_NAME, ticketToken: ticket.id }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
-  benefits.forEach((benefit, index) => {
-    new QRCode($(`#benefit-qr-${renderId}-${index}`), { text: JSON.stringify({ app: APP_NAME, type: 'benefit', benefitToken: benefit.token }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+  container.innerHTML = `<article class="ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}"><div class="ticket-art"><img src="${ticketArtUrl(courtesy)}" alt="Boleta ${ticketLabel(ticket)} Vive el Arte" />${statusStamps}</div><section class="ticket-personal"><div><p class="ticket-label">BOLETA VIRTUAL · ${ticketLabel(ticket).toUpperCase()}</p><p class="ticket-person">${escapeHtml(ticket.name)}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${ticket.id.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${description}</p>${upgradeNote}</div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div id="ticket-qr-${renderId}" class="qr" aria-label="Código QR de ${escapeHtml(ticket.name)}"></div></div>${benefitMarkup}</div></section></article>`;
+  loadLibrary('https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js', 'QRCode').then((QRCode) => {
+    const entryQr = $(`#ticket-qr-${renderId}`);
+    if (!entryQr) return;
+    new QRCode(entryQr, { text: JSON.stringify({ app: APP_NAME, ticketToken: ticket.id }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    benefits.forEach((benefit, index) => {
+      const benefitQr = $(`#benefit-qr-${renderId}-${index}`);
+      if (benefitQr) new QRCode(benefitQr, { text: JSON.stringify({ app: APP_NAME, type: 'benefit', benefitToken: benefit.token }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    });
+  }).catch((error) => {
+    console.error(error);
+    const entryQr = $(`#ticket-qr-${renderId}`);
+    if (entryQr) entryQr.textContent = 'No se pudo cargar el QR.';
   });
 }
 function showTicket(personId) {
@@ -287,37 +329,29 @@ function showTicket(personId) {
   const ticket = person && ticketForPerson(person);
   if (!ticket) return setFeedback('La boleta todavía no está disponible.', true);
   displayedTicket = ticket;
+  displayedPersonId = personId;
   renderTicket($('#ticket-content'), ticket);
   if (!$('#ticket-modal').open) $('#ticket-modal').showModal();
 }
 function shareTicket() {
   if (!displayedTicket) return;
-  const link = new URL(window.location.href);
-  link.search = '';
-  link.hash = '';
+  const link = new URL('./', import.meta.url);
   link.searchParams.set('boleta', displayedTicket.id);
   const type = displayedTicket.ticketType === 'courtesy' ? 'de cortesía' : 'regular';
   const message = `Hola ${displayedTicket.name}. Esta es tu boleta ${type} de Live! Vive el Arte. Muéstrala al llegar al evento:\n${link}`;
   window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
 }
-function listenToPublicTicket() {
-  if (!publicTicketToken) return;
-  if (!/^[A-Za-z0-9_-]{43}$/.test(publicTicketToken)) {
-    $('#public-ticket-status').textContent = 'El enlace de esta boleta no es válido.';
-    return;
+async function copyTicketLink() {
+  if (!displayedTicket) return;
+  const link = new URL('./', import.meta.url);
+  link.searchParams.set('boleta', displayedTicket.id);
+  try {
+    await navigator.clipboard.writeText(link.toString());
+    setFeedback('Nuevo enlace copiado.', false);
+  } catch (error) {
+    console.error(error);
+    setFeedback('No se pudo copiar el enlace. Ábrelo y cópialo desde el navegador.', true);
   }
-  $('#public-ticket-status').textContent = 'Cargando tu boleta...';
-  onSnapshot(doc(db, 'tickets', publicTicketToken), (snapshot) => {
-    if (!snapshot.exists()) {
-      $('#public-ticket-status').textContent = 'Esta boleta no existe o ya no está disponible.';
-      $('#public-ticket-content').innerHTML = '';
-      return;
-    }
-    $('#public-ticket-status').textContent = 'Tu boleta se actualiza en tiempo real.';
-    renderTicket($('#public-ticket-content'), { id: snapshot.id, ...snapshot.data() });
-  }, () => {
-    $('#public-ticket-status').textContent = 'No fue posible abrir esta boleta.';
-  });
 }
 
 async function createPerson(event) {
@@ -340,6 +374,7 @@ async function createPerson(event) {
   form.reset();
   $('#person-form').close();
   displayedTicket = { id: ticketToken, name: person.name, ticketType: person.ticketType, visits: 0, benefits: [] };
+  displayedPersonId = personRef.id;
   renderTicket($('#ticket-content'), displayedTicket);
   $('#ticket-modal').showModal();
 }
@@ -465,9 +500,44 @@ async function upgradeToRegular(personId) {
       transaction.delete(oldTicketSnapshot.ref);
     });
     displayedTicket = { id: newTicketToken, name: person.name, ticketType: 'regular', visits: 0, benefits: [] };
+    displayedPersonId = person.id;
     renderTicket($('#ticket-content'), displayedTicket);
     if (!$('#ticket-modal').open) $('#ticket-modal').showModal();
     setFeedback(`Boleta regular creada para ${person.name}. Comparte el nuevo enlace.`);
+  } catch (error) { reportOperationError(error); }
+}
+
+async function regenerateTicket(personId) {
+  const person = state.people.find((item) => item.id === personId);
+  if (!person || !confirm(`Regenerar la boleta de ${person.name}? El enlace y QR actuales dejarán de funcionar.`)) return;
+  try {
+    requireAdmin();
+    const newTicketToken = randomToken();
+    let regeneratedTicket;
+    const benefitMatches = await getDocs(query(collection(db, 'benefits'), where('personId', '==', person.id)));
+    if (benefitMatches.docs.length > 12) userError('Esta boleta tiene demasiados beneficios para regenerarse desde el navegador. Contacta al soporte técnico.');
+    await runTransaction(db, async (transaction) => {
+      const [personSnapshot, oldTicketSnapshot, ...benefitSnapshots] = await Promise.all([
+        transaction.get(doc(db, 'people', person.id)),
+        transaction.get(doc(db, 'tickets', person.ticketToken)),
+        ...benefitMatches.docs.map((item) => transaction.get(doc(db, 'benefits', item.id))),
+      ]);
+      if (!personSnapshot.exists() || !oldTicketSnapshot.exists()) userError('No se encontró la boleta actual para regenerarla.');
+      const oldTicket = oldTicketSnapshot.data();
+      const personBenefits = benefitSnapshots.filter((item) => item.exists()).map((item) => ({ id: item.id, ...item.data() }));
+      const activeBenefits = personBenefits.filter((benefit) => !benefit.usedAt);
+      const refreshedBenefits = activeBenefits.map((benefit) => ({ ...benefit, token: randomToken() }));
+      regeneratedTicket = { id: newTicketToken, name: oldTicket.name, ticketType: oldTicket.ticketType, visits: Number(oldTicket.visits) || 0, benefits: refreshedBenefits.map((benefit) => ({ token: benefit.token, eventName: benefit.eventName })) };
+      transaction.set(doc(db, 'tickets', newTicketToken), { name: regeneratedTicket.name, ticketType: regeneratedTicket.ticketType, visits: regeneratedTicket.visits, benefits: regeneratedTicket.benefits, createdAt: serverTimestamp() });
+      transaction.update(personSnapshot.ref, { ticketToken: newTicketToken, ticketRegeneratedAt: serverTimestamp() });
+      refreshedBenefits.forEach((benefit) => transaction.update(doc(db, 'benefits', benefit.id), { ticketToken: newTicketToken, token: benefit.token }));
+      personBenefits.filter((benefit) => benefit.usedAt).forEach((benefit) => transaction.update(doc(db, 'benefits', benefit.id), { ticketToken: newTicketToken }));
+      transaction.delete(oldTicketSnapshot.ref);
+    });
+    displayedTicket = regeneratedTicket;
+    displayedPersonId = person.id;
+    renderTicket($('#ticket-content'), displayedTicket);
+    setFeedback(`Boleta regenerada para ${person.name}. Comparte el nuevo enlace.`, false);
   } catch (error) { reportOperationError(error); }
 }
 
@@ -487,6 +557,8 @@ async function createEvent(event) {
   const newEvent = {
     name: $('#event-name').value.trim(),
     date: $('#event-date').value,
+    time: $('#event-time').value,
+    location: $('#event-location').value.trim(),
     description: $('#event-description').value.trim(),
     createdAt: serverTimestamp(),
   };
@@ -494,6 +566,40 @@ async function createEvent(event) {
   await resolvePendingBenefits({ id: eventRef.id, ...newEvent });
   form.reset();
   $('#event-date').value = localDate();
+  $('#event-form').close();
+}
+
+function openEventForm(eventId) {
+  const event = state.events.find((item) => item.id === eventId);
+  const form = $('#event-form');
+  $('#event-id').value = event?.id || '';
+  $('#event-form-title').textContent = event ? 'Editar evento' : 'Crear evento';
+  $('#event-name').value = event?.name || '';
+  $('#event-date').value = event?.date || localDate();
+  $('#event-time').value = event?.time || '';
+  $('#event-location').value = event?.location || '';
+  $('#event-description').value = event?.description || '';
+  form.showModal();
+}
+
+async function updateEvent(event) {
+  requireAdmin();
+  const form = event.currentTarget;
+  const eventId = $('#event-id').value;
+  const existing = state.events.find((item) => item.id === eventId);
+  if (!existing) userError('No se encontró el evento para actualizar.');
+  const { id: _, ...existingData } = existing;
+  const updates = {
+    name: $('#event-name').value.trim(),
+    date: $('#event-date').value,
+    time: $('#event-time').value,
+    location: $('#event-location').value.trim(),
+    description: $('#event-description').value.trim(),
+    updatedAt: serverTimestamp(),
+  };
+  await setDoc(doc(db, 'events', eventId), { ...existingData, ...updates }, { merge: false });
+  form.reset();
+  $('#event-id').value = '';
   $('#event-form').close();
 }
 
@@ -540,20 +646,26 @@ async function submitForm(form, operation) {
 }
 
 document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', () => {
-  if (isAdmin) $(`#${button.dataset.open}`).showModal();
+  if (!isAdmin) return;
+  if (button.dataset.open === 'event-form') openEventForm();
+  else $(`#${button.dataset.open}`).showModal();
 }));
 $('#person-search').addEventListener('input', renderPeople);
 $('#people-list').addEventListener('click', (event) => {
   const ticketButton = event.target.closest('[data-ticket]');
   const deleteButton = event.target.closest('[data-delete-person]');
   const upgradeButton = event.target.closest('[data-upgrade-person]');
+  const regenerateButton = event.target.closest('[data-regenerate-ticket]');
   if (ticketButton) showTicket(ticketButton.dataset.ticket);
   if (upgradeButton) upgradeToRegular(upgradeButton.dataset.upgradePerson);
+  if (regenerateButton) regenerateTicket(regenerateButton.dataset.regenerateTicket);
   if (deleteButton) deletePerson(deleteButton.dataset.deletePerson);
 });
 $('#event-list').addEventListener('click', (event) => {
   const button = event.target.closest('[data-delete-event]');
+  const editButton = event.target.closest('[data-edit-event]');
   if (button) deleteEvent(button.dataset.deleteEvent);
+  if (editButton) openEventForm(editButton.dataset.editEvent);
 });
 $('#new-person-form').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -563,15 +675,25 @@ $('#new-person-form').addEventListener('submit', async (event) => {
 $('#new-event-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (event.submitter?.value === 'cancel') return $('#event-form').close();
-  await submitForm(event.currentTarget, () => createEvent(event));
+  await submitForm(event.currentTarget, () => $('#event-id').value ? updateEvent(event) : createEvent(event));
 });
 $('#manual-checkin').addEventListener('click', () => submitEntry(() => registerCheckin($('#manual-person').value, currentEvent())));
+$('#manual-code-checkin').addEventListener('click', () => submitEntry(async () => {
+  const payload = payloadFromValue($('#manual-ticket-code').value);
+  if (payload.app !== APP_NAME) userError('Este código no pertenece a Live! Vive el Arte.');
+  if (payload.type === 'benefit') return redeemBenefit(payload.benefitToken, currentEvent());
+  const person = state.people.find((item) => item.ticketToken === payload.ticketToken);
+  if (!person) userError('No se encontró una persona para esta boleta.');
+  return registerCheckin(person.id, currentEvent());
+}));
 $('#active-event').addEventListener('change', () => {
   setFeedback('');
   updateEntryControls();
 });
 $('#close-ticket').addEventListener('click', () => $('#ticket-modal').close());
 $('#share-ticket').addEventListener('click', shareTicket);
+$('#copy-ticket').addEventListener('click', copyTicketLink);
+$('#regenerate-ticket').addEventListener('click', () => regenerateTicket(displayedPersonId));
 $('#sign-in').addEventListener('click', () => $('#auth-form').showModal());
 $('#admin-auth-form').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -600,15 +722,17 @@ async function startScanner() {
     return;
   }
   if (!window.isSecureContext) return setFeedback('La cámara requiere abrir la página mediante HTTPS.', true);
-  if (!window.Html5Qrcode) return setFeedback('No se pudo cargar el lector QR. Revisa tu conexión.', true);
   scannerStarting = true;
   updateEntryControls();
-  $('#qr-reader').hidden = false;
-  $('#start-scanner').hidden = true;
-  $('#stop-scanner').hidden = false;
-  const activeScanner = new Html5Qrcode('qr-reader');
-  scanner = activeScanner;
   try {
+    setFeedback('Cargando lector QR...');
+    const Html5Qrcode = await loadLibrary('https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js', 'Html5Qrcode');
+    if (!scannerStarting) return;
+    $('#qr-reader').hidden = false;
+    $('#start-scanner').hidden = true;
+    $('#stop-scanner').hidden = false;
+    const activeScanner = new Html5Qrcode('qr-reader');
+    scanner = activeScanner;
     await activeScanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decoded) => {
       if (scannerDecoding || entryInFlight) return;
       scannerDecoding = true;
@@ -653,11 +777,6 @@ async function stopScanner(keepDecodeLock = false) {
 $('#start-scanner').addEventListener('click', startScanner);
 $('#stop-scanner').addEventListener('click', stopScanner);
 
-enableMultiTabIndexedDbPersistence(db).catch((error) => {
-  offlineCacheAvailable = false;
-  console.warn('La caché local persistente no está disponible.', error.code || error);
-  updateConnectionStatus();
-});
 window.addEventListener('online', updateConnectionStatus);
 window.addEventListener('offline', updateConnectionStatus);
 document.addEventListener('visibilitychange', () => {
@@ -666,7 +785,6 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => { stopScanner(); });
 
 $('#event-date').value = localDate();
-listenToPublicTicket();
 onAuthStateChanged(auth, async (user) => {
   stopScanner();
   stopOperationalListeners();
