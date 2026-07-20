@@ -93,7 +93,7 @@ service cloud.firestore {
         && data.pending == (data.eventId == null)
         && data.earnedAt is timestamp
         && (data.usedAt == null || data.usedAt is timestamp)
-        && benefitId == data.personId + '_' + data.visitNumber;
+        && benefitId.matches('^' + data.personId + '_[0-9]+$');
     }
 
     match /admins/{userId} {

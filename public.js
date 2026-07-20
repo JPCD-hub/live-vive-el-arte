@@ -161,7 +161,10 @@ function renderTicket(ticket) {
   const fill = create('span', undefined, 'progress-value');
   fill.style.width = `${(progress / required) * 100}%`;
   track.append(fill);
-  progressBlock.append(track);
+  const stamps = create('div', undefined, 'ticket-stamps');
+  stamps.setAttribute('aria-hidden', 'true');
+  for (let index = 0; index < required; index += 1) stamps.append(create('span', undefined, `ticket-stamp${index < progress ? ' active' : ''}`));
+  progressBlock.append(track, stamps);
   body.append(identity, progressBlock);
   if (benefits.length) body.append(create('p', `Beneficio disponible: ${benefits.map((item) => item.eventName).join(', ')}.`, 'ticket-benefit'));
   const qrArea = create('div', undefined, 'ticket-qr-area');
