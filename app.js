@@ -56,16 +56,16 @@ let displayedPersonId = null;
 const libraryPromises = new Map();
 const TICKET_STAMP_LAYOUTS = {
   regular: [
-    { x: 52, y: 56, size: 15 },
-    { x: 61, y: 56, size: 15 },
-    { x: 70, y: 56, size: 15 },
-    { x: 52, y: 68, size: 15 },
-    { x: 61, y: 68, size: 15 },
+    { x: 49, y: 55, size: 15 },
+    { x: 61, y: 55, size: 15 },
+    { x: 73, y: 55, size: 15 },
+    { x: 49, y: 67, size: 15 },
+    { x: 61, y: 67, size: 15 },
   ],
   courtesy: [
-    { x: 60, y: 53, size: 11 },
-    { x: 72, y: 53, size: 11 },
-    { x: 83, y: 53, size: 11 },
+    { x: 60, y: 55, size: 11 },
+    { x: 72, y: 55, size: 11 },
+    { x: 83, y: 55, size: 11 },
   ],
 };
 

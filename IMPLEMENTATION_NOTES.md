@@ -14,19 +14,24 @@ Las coordenadas de los granos de café se definen en un único objeto JavaScript
 ```js
 const TICKET_STAMP_LAYOUTS = {
   regular: [
-    { x: 48, y: 55, size: 15 },  // Fila 1, círculo 1
+    { x: 49, y: 55, size: 15 },  // Fila 1, círculo 1
     { x: 61, y: 55, size: 15 },  // Fila 1, círculo 2
-    { x: 74, y: 55, size: 15 },  // Fila 1, círculo 3
-    { x: 48, y: 68, size: 15 },  // Fila 2, círculo 1
-    { x: 61, y: 68, size: 15 },  // Fila 2, círculo 2
+    { x: 73, y: 55, size: 15 },  // Fila 1, círculo 3
+    { x: 49, y: 67, size: 15 },  // Fila 2, círculo 1
+    { x: 61, y: 67, size: 15 },  // Fila 2, círculo 2
   ],
   courtesy: [
-    { x: 60, y: 53, size: 11 },  // Círculo 1
-    { x: 72, y: 53, size: 11 },  // Círculo 2
-    { x: 83, y: 53, size: 11 },  // Círculo 3
+    { x: 60, y: 55, size: 11 },  // Círculo 1
+    { x: 72, y: 55, size: 11 },  // Círculo 2
+    { x: 83, y: 55, size: 11 },  // Círculo 3
   ],
 };
 ```
+
+### Imágenes de boleta
+
+- **Regular**: `Boleta 2.jpeg` — 1080×1440 (retrato, 3:4).
+- **Cortesía**: `boleta 1.jpeg` — 1536×1024 (paisaje, 3:2).
 
 ### Cómo se calcularon
 
@@ -43,14 +48,14 @@ Las posiciones se midieron inspeccionando las imágenes `Boleta 2.jpeg` (1080×1
 
 Los marcadores usan propiedades CSS personalizadas inline:
 ```html
-<span class="ticket-art-stamp active"
-  style="--stamp-x: 48%; --stamp-y: 55%; --stamp-size: 15%;"
+<span class="reference-stamp active"
+  style="--stamp-x: 49%; --stamp-y: 55%; --stamp-size: 15%;"
   aria-label="Visita 1 registrada"
   data-stamp-index="0"></span>
 ```
 
 ```css
-.ticket-art-stamp {
+.reference-stamp {
   position: absolute;
   left: var(--stamp-x);
   top: var(--stamp-y);
@@ -175,13 +180,25 @@ firebase deploy --only firestore:rules --project ticket-service-c2eac
 
 Al cambiar recursos cacheados, incrementa `CACHE` y el listado `SHELL` en `sw.js`; incrementa los parámetros de versión de `public.css`, `public.js`, `styles.css` o `app.js` cuando corresponda.
 
+## Versión actual
+
+- `sw.js` cache: `v9`
+- `styles.css`: `v35`
+- `public.css`: `v11`
+- `public.js`: `v6`
+- `app.js`: `v17`
+
+## Arquitectura CSS unificada
+
+`styles.css` es la fuente única de verdad para el componente de boleta (`.ticket`, `.ticket-art`, `.reference-stamp`, `.ticket-personal`, `.ticket-codes`, `.qr`, etc.). `public.css` solo contiene estilos de layout de la página pública (`.ticket-page`, `.ticket-access`, etc.). `index.html` carga ambos: `styles.css` primero, `public.css` después.
+
 ## Archivos modificados
 
 - `app.js` — Layout unificado, actualización en tiempo real del modal, modo debug, accesibilidad.
-- `public.js` — Layout unificado, actualización incremental sin reconstrucción completa, modo debug.
-- `public.css` — Sistema de propiedades CSS personalizadas, animación `stamp-in`, modo debug.
-- `styles.css` — Sistema de propiedades CSS personalizadas, corrección de `translate`, animación, modo debug.
+- `public.js` — Layout unificado usando clases admin (`.ticket`, `.reference-stamp`, `.ticket-personal`), actualización incremental sin reconstrucción completa, modo debug.
+- `public.css` — Solo layout de página pública; componentes de boleta removidos (ahora están en `styles.css`).
+- `styles.css` — Fuente única de verdad para componente de boleta; grid regular sin `45vh`, modal ampliado a 1040px, botones con `flex-wrap`, cortesía con imagen full-width.
 - `admin/index.html` — Región `aria-live`, versión actualizada.
-- `index.html` — Versión actualizada.
-- `sw.js` — Cache incrementado a v8.
+- `index.html` — Carga `styles.css?v=35` antes de `public.css?v=11`.
+- `sw.js` — Cache incrementado a v9 con stale-while-revalidate para CSS/JS.
 - `IMPLEMENTATION_NOTES.md` — Esta documentación.

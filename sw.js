@@ -1,7 +1,7 @@
 const CACHE_PREFIX = 'live-vive-el-arte-public-';
-const CACHE = `${CACHE_PREFIX}v8`;
-const LEGACY_CACHES = ['live-public-shell-v1'];
-const SHELL = ['./', './index.html', './public.css?v=10', './public.js?v=5', './assets/icon.svg', './assets/social-live.svg', './Boleta%202.jpeg', './boleta%201.jpeg'];
+const CACHE = `${CACHE_PREFIX}v9`;
+const LEGACY_CACHES = ['live-public-shell-v1', `${CACHE_PREFIX}v8`];
+const SHELL = ['./', './index.html', './styles.css?v=35', './public.css?v=11', './public.js?v=6', './assets/icon.svg', './assets/social-live.svg', './Boleta%202.jpeg', './boleta%201.jpeg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -16,8 +16,29 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin || url.searchParams.has('boleta') || url.pathname.includes('/admin/')) return;
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).catch(() => caches.open(CACHE).then((cache) => cache.match('./index.html'))));
+    event.respondWith(
+      fetch(request).then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE).then((cache) => cache.put(request, clone));
+        return response;
+      }).catch(() => caches.open(CACHE).then((cache) => cache.match('./index.html')))
+    );
     return;
   }
-  if (SHELL.some((path) => new URL(path, self.location).href === url.href)) event.respondWith(caches.match(request).then((cached) => cached || fetch(request)));
+  const ext = url.pathname.split('.').pop();
+  if (ext === 'css' || ext === 'js') {
+    event.respondWith(
+      caches.open(CACHE).then((cache) => cache.match(request).then((cached) => {
+        const fetchPromise = fetch(request).then((response) => {
+          if (response.ok) cache.put(request, response.clone());
+          return response;
+        }).catch(() => cached);
+        return cached || fetchPromise;
+      }))
+    );
+    return;
+  }
+  if (SHELL.some((path) => new URL(path, self.location).href === url.href)) {
+    event.respondWith(caches.match(request).then((cached) => cached || fetch(request)));
+  }
 });

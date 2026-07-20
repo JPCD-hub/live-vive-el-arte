@@ -26,16 +26,16 @@ let qrLibraryPromise;
 let installPrompt;
 const TICKET_STAMP_LAYOUTS = {
   regular: [
-    { x: 52, y: 56, size: 15 },
-    { x: 61, y: 56, size: 15 },
-    { x: 70, y: 56, size: 15 },
-    { x: 52, y: 68, size: 15 },
-    { x: 61, y: 68, size: 15 },
+    { x: 49, y: 55, size: 15 },
+    { x: 61, y: 55, size: 15 },
+    { x: 73, y: 55, size: 15 },
+    { x: 49, y: 67, size: 15 },
+    { x: 61, y: 67, size: 15 },
   ],
   courtesy: [
-    { x: 60, y: 53, size: 11 },
-    { x: 72, y: 53, size: 11 },
-    { x: 83, y: 53, size: 11 },
+    { x: 60, y: 55, size: 11 },
+    { x: 72, y: 55, size: 11 },
+    { x: 83, y: 55, size: 11 },
   ],
 };
 let previousPublicTicketState = null;
@@ -156,78 +156,40 @@ function renderTicket(ticket) {
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
   const layout = courtesy ? TICKET_STAMP_LAYOUTS.courtesy : TICKET_STAMP_LAYOUTS.regular;
   const renderId = ++publicTicketRenderId;
-  const article = create('article', undefined, `digital-ticket ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}`);
-  const grid = create('div', undefined, 'digital-ticket-grid');
-  const art = create('div', undefined, 'digital-ticket-art');
-  const image = document.createElement('img');
-  image.src = courtesy ? 'boleta%201.jpeg' : 'Boleta%202.jpeg';
-  image.width = courtesy ? 1536 : 1080;
-  image.height = courtesy ? 1024 : 1440;
-  image.alt = `Diseño de boleta ${courtesy ? 'de cortesía' : 'regular'} Live! Vive el Arte`;
-  art.append(image);
-  layout.forEach((stamp, index) => {
-    const el = create('span', undefined, `ticket-art-stamp${index < progress ? ' active' : ''}`);
-    el.style.setProperty('--stamp-x', `${stamp.x}%`);
-    el.style.setProperty('--stamp-y', `${stamp.y}%`);
-    el.style.setProperty('--stamp-size', `${stamp.size}%`);
-    el.setAttribute('aria-label', `Visita ${index + 1}${index < progress ? ' registrada' : ' pendiente'}`);
-    el.setAttribute('data-stamp-index', String(index));
-    art.append(el);
-  });
-  const body = create('div', undefined, 'digital-ticket-body');
-  const identity = document.createElement('div');
-  identity.append(create('p', `BOLETA DIGITAL · ${courtesy ? 'CORTESÍA' : 'REGULAR'}`, 'ticket-type-label'));
-  identity.append(create('h2', ticket.name || 'Boleta Live!', 'ticket-name'));
-  identity.append(create('p', `Código de comunidad: ${ticket.id.slice(0, 8).toUpperCase()}`, 'ticket-code'));
-  const progressBlock = document.createElement('div');
+  const statusStamps = layout.map((stamp, index) => `<span class="reference-stamp${index < progress ? ' active' : ''}" style="--stamp-x: ${stamp.x}%; --stamp-y: ${stamp.y}%; --stamp-size: ${stamp.size}%;" aria-label="Visita ${index + 1}${index < progress ? ' registrada' : ' pendiente'}" data-stamp-index="${index}"></span>`).join('');
   const description = courtesy
-    ? (visits >= required ? 'Las tres cortesías fueron utilizadas.' : `${progress} de ${required} miércoles utilizados.`)
+    ? visits >= required
+      ? 'Las 3 cortesías ya fueron utilizadas. Esta boleta no admite más ingresos.'
+      : `Entrada de cortesía: ${progress} de ${required} miércoles utilizados.`
     : `${progress} de ${required} asistencias en el ciclo actual · ${visits} en total.`;
-  progressBlock.append(create('p', description, 'progress-copy'));
-  const track = create('div', undefined, 'progress-track');
-  const fill = create('span', undefined, 'progress-value');
-  fill.style.width = `${(progress / required) * 100}%`;
-  track.append(fill);
-  progressBlock.append(track);
-  body.append(identity, progressBlock);
-  if (benefits.length) body.append(create('p', `Beneficio disponible: ${benefits.map((item) => item.eventName).join(', ')}.`, 'ticket-benefit'));
-  const qrArea = create('div', undefined, 'ticket-qr-area');
-  const entryCard = create('div', undefined, 'ticket-qr-card');
-  entryCard.append(create('span', 'Ingreso'));
-  const entryQr = create('div', undefined, 'ticket-qr');
-  entryQr.setAttribute('aria-label', 'Código QR para registrar ingreso');
-  entryCard.append(entryQr);
-  qrArea.append(entryCard);
-  appendQr(entryQr, { app: APP_NAME, ticketToken: ticket.id });
-  benefits.forEach((benefit) => {
-    const benefitCard = create('div', undefined, 'ticket-qr-card reward');
-    benefitCard.append(create('span', `Beneficio · ${benefit.eventName}`));
-    const benefitQr = create('div', undefined, 'ticket-qr');
-    benefitCard.append(benefitQr);
-    qrArea.append(benefitCard);
-    appendQr(benefitQr, { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918');
-  });
-  const privacy = create('p', 'Esta boleta es personal. Evita compartir este enlace. No mostramos datos de contacto públicamente.', 'ticket-privacy');
-  const actions = create('div', undefined, 'ticket-actions');
-  const share = create('button', 'Compartir enlace', 'button button-primary');
-  share.type = 'button';
-  share.addEventListener('click', () => shareTicket(ticket));
-  const copy = create('button', 'Copiar enlace', 'button button-secondary');
-  copy.type = 'button';
-  copy.addEventListener('click', () => copyTicketLink(ticket));
-  actions.append(share, copy);
-  body.append(qrArea, privacy, actions);
-  grid.append(art, body);
-  article.append(grid);
+  const benefitMarkup = benefits.map((benefit, index) => `<div class="ticket-qr-item reward-qr"><span>BENEFICIO · ${benefit.eventName}</span><div id="benefit-qr-${renderId}-${index}" class="qr" aria-label="QR de beneficio para ${benefit.eventName}"></div></div>`).join('');
+  const upgradeNote = courtesy && visits >= required ? '<p class="ticket-upgrade-note">¿Quieres seguir asistiendo? Solicita al equipo Live! tu nueva boleta regular.</p>' : '';
+  const article = create('article', undefined, `ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}`);
+  article.innerHTML = `<div class="ticket-art"><img src="${courtesy ? 'boleta%201.jpeg' : 'Boleta%202.jpeg'}" width="${courtesy ? 1536 : 1080}" height="${courtesy ? 1024 : 1440}" alt="Boleta ${courtesy ? 'de cortesía' : 'regular'} Vive el Arte" />${statusStamps}</div><section class="ticket-personal"><div><p class="ticket-label">BOLETA DIGITAL · ${courtesy ? 'CORTESÍA' : 'REGULAR'}</p><p class="ticket-person">${ticket.name || 'Boleta Live!'}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${ticket.id.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${description}</p>${upgradeNote}</div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div id="ticket-qr-${renderId}" class="qr" aria-label="Código QR de ${ticket.name || 'Boleta'}"></div></div>${benefitMarkup}</div></section>`;
   article.setAttribute('data-benefit-tokens', benefits.map((b) => b.token).join(','));
   article.setAttribute('data-ticket-token', ticket.id);
   container.replaceChildren(article);
+  loadQrLibrary().then((QRCode) => {
+    requestAnimationFrame(() => {
+      const renderQr = (element, data, color) => {
+        if (!element) return;
+        const size = Math.max(70, Math.round(element.getBoundingClientRect().width));
+        new QRCode(element, { text: JSON.stringify(data), width: size, height: size, colorDark: color || '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      };
+      renderQr($(`#ticket-qr-${renderId}`), { app: APP_NAME, ticketToken: ticket.id });
+      benefits.forEach((benefit, index) => renderQr($(`#benefit-qr-${renderId}-${index}`), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918'));
+    });
+  }).catch((error) => {
+    console.error(error);
+    const entryQr = $(`#ticket-qr-${renderId}`);
+    if (entryQr) entryQr.textContent = 'No se pudo cargar el QR.';
+  });
   previousPublicTicketState = { ticketToken: ticket.id, visits: ticket.visits, benefits: benefits.map((b) => b.token).join(','), required, courtesy };
 }
 
 function updateTicketStamps(container, ticket) {
   const { courtesy, required, progress } = ticketProgress(ticket);
-  const stamps = container.querySelectorAll('.ticket-art-stamp');
+  const stamps = container.querySelectorAll('.reference-stamp');
   stamps.forEach((stamp, index) => {
     const wasActive = stamp.classList.contains('active');
     const shouldBeActive = index < progress;
@@ -244,15 +206,12 @@ function updateTicketStamps(container, ticket) {
 
 function updateTicketVisitText(container, ticket) {
   const { visits, courtesy, required, progress } = ticketProgress(ticket);
-  const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
-  const visitsEl = container.querySelector('.progress-copy');
+  const visitsEl = container.querySelector('.ticket-visits');
   if (visitsEl) {
     visitsEl.textContent = courtesy
-      ? (visits >= required ? 'Las tres cortesías fueron utilizadas.' : `${progress} de ${required} miércoles utilizados.`)
+      ? (visits >= required ? 'Las 3 cortesías ya fueron utilizadas. Esta boleta no admite más ingresos.' : `Entrada de cortesía: ${progress} de ${required} miércoles utilizados.`)
       : `${progress} de ${required} asistencias en el ciclo actual · ${visits} en total.`;
   }
-  const fill = container.querySelector('.progress-value');
-  if (fill) fill.style.width = `${(progress / required) * 100}%`;
 }
 
 function updateTicketBenefits(container, ticket) {
@@ -261,31 +220,23 @@ function updateTicketBenefits(container, ticket) {
   const renderedTokens = container.getAttribute('data-benefit-tokens') || '';
   if (currentTokens !== renderedTokens) {
     container.setAttribute('data-benefit-tokens', currentTokens);
-    const qrArea = container.querySelector('.ticket-qr-area');
-    if (!qrArea) return;
-    qrArea.querySelectorAll('.ticket-qr-card.reward').forEach((el) => el.remove());
-    benefits.forEach((benefit) => {
-      const benefitCard = create('div', undefined, 'ticket-qr-card reward');
-      benefitCard.append(create('span', `Beneficio · ${benefit.eventName}`));
-      const benefitQr = create('div', undefined, 'ticket-qr');
+    const codes = container.querySelector('.ticket-codes');
+    if (!codes) return;
+    codes.querySelectorAll('.ticket-qr-item.reward-qr').forEach((el) => el.remove());
+    benefits.forEach((benefit, index) => {
+      const benefitCard = create('div', undefined, 'ticket-qr-item reward-qr');
+      benefitCard.append(create('span', `BENEFICIO · ${benefit.eventName}`));
+      const benefitQr = create('div', undefined, 'qr');
       benefitCard.append(benefitQr);
-      qrArea.append(benefitCard);
+      codes.append(benefitCard);
       appendQr(benefitQr, { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918');
     });
-    const benefitText = container.querySelector('.ticket-benefit');
-    if (benefits.length && benefitText) benefitText.textContent = `Beneficio disponible: ${benefits.map((item) => item.eventName).join(', ')}.`;
-    else if (benefits.length && !benefitText) {
-      const body = container.querySelector('.digital-ticket-body');
-      const qrAreaEl = container.querySelector('.ticket-qr-area');
-      const bp = create('p', `Beneficio disponible: ${benefits.map((item) => item.eventName).join(', ')}.`, 'ticket-benefit');
-      if (qrAreaEl) body.insertBefore(bp, qrAreaEl);
-    } else if (!benefits.length && benefitText) benefitText.remove();
   }
 }
 
 function updatePublicTicketRealtime(ticket) {
   const container = $('#public-ticket-content');
-  const article = container.querySelector('.digital-ticket');
+  const article = container.querySelector('.ticket');
   if (!article) { renderTicket(ticket); return; }
   const prev = previousPublicTicketState;
   const currentBenefitTokens = (Array.isArray(ticket.benefits) ? ticket.benefits : []).map((b) => b.token).join(',');
@@ -297,7 +248,8 @@ function updatePublicTicketRealtime(ticket) {
     updateTicketBenefits(article, ticket);
   }
   if (!prev || prev.ticketToken !== ticket.id) renderTicket(ticket);
-  previousPublicTicketState = { ticketToken: ticket.id, visits: ticket.visits, benefits: currentBenefitTokens, required: requiredVisits(ticket), courtesy: ticket.ticketType === 'courtesy' };
+  const { required, courtesy } = ticketProgress(ticket);
+  previousPublicTicketState = { ticketToken: ticket.id, visits: ticket.visits, benefits: currentBenefitTokens, required, courtesy };
 }
 
 async function copyTicketLink(ticket) {

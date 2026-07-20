@@ -699,8 +699,8 @@ textarea:focus-visible {
 
 /* ========== TICKET MODAL ========== */
 .ticket-modal {
-  width: min(760px, calc(100vw - 20px));
-  max-height: 94vh;
+  width: min(1040px, calc(100vw - 40px));
+  max-height: min(92dvh, 900px);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
@@ -723,10 +723,13 @@ textarea:focus-visible {
 
 .ticket-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   justify-content: center;
   padding: 16px;
   border-top: 1px solid var(--line);
 }
+.ticket-actions .button { flex: 0 1 auto; }
 
 /* ========== TICKET CONTENT ========== */
 .ticket {
@@ -854,6 +857,7 @@ textarea:focus-visible {
 
 .qr {
   min-height: 110px;
+  aspect-ratio: 1;
   padding: 7px;
   background: #fff;
 }
@@ -951,8 +955,8 @@ textarea:focus-visible {
 /* ========== REGULAR TICKET (2-column) ========== */
 .ticket-regular {
   display: grid;
-  grid-template-columns: minmax(330px, 45vh) minmax(250px, 1fr);
-  align-items: stretch;
+  grid-template-columns: minmax(300px, 42%) minmax(0, 1fr);
+  align-items: start;
 }
 
 .ticket-regular .ticket-art {
@@ -965,7 +969,6 @@ textarea:focus-visible {
 .ticket-regular .ticket-personal {
   display: grid;
   grid-template-columns: 1fr;
-  align-content: center;
   max-width: none;
   margin: 0;
   padding: 28px 24px;
@@ -996,7 +999,8 @@ textarea:focus-visible {
 .ticket-regular .reward-qr .qr { width: 94px; height: 94px; min-height: 0; }
 
 /* ========== COURTESY TICKET ========== */
-.ticket-courtesy .ticket-art { width: min(100%, 720px); margin: 0 auto; }
+.ticket-courtesy { display: grid; grid-template-columns: 1fr; }
+.ticket-courtesy .ticket-art { width: 100%; margin: 0; }
 .ticket-courtesy .reference-stamp { width: var(--stamp-size, 11%); }
 .ticket-courtesy .reference-stamp.active { border-width: 4px; }
 
@@ -1030,7 +1034,7 @@ textarea:focus-visible {
    RESPONSIVE: TABLET (700px - 1024px)
    ========================================== */
 @media (min-width: 700px) {
-  .ticket-modal { width: min(760px, calc(100vw - 40px)); }
+  .ticket-modal { width: min(1040px, calc(100vw - 40px)); }
 }
 
 @media (hover: hover) {
@@ -1148,12 +1152,11 @@ textarea:focus-visible {
   .ticket-regular .reward-qr { border: 2px solid var(--red); background: #fff8ea; }
   .ticket-regular .reward-qr .qr { width: clamp(70px, 28vw, 116px); height: clamp(70px, 28vw, 116px); min-height: 0; aspect-ratio: 1; }
 
-  /* Courtesy ticket mobile: the horizontal template must use the viewport width,
-     not vh, otherwise it becomes too small when Android is in landscape. */
-  .ticket-courtesy .ticket-art { width: 100%; max-width: 720px; }
+  /* Courtesy ticket mobile: full width, horizontal image fills the viewport */
+  .ticket-courtesy .ticket-art { width: 100%; }
   .ticket-courtesy .ticket-art > img { width: 100%; height: auto; object-fit: contain; }
 
-  .ticket-courtesy .ticket-personal { max-width: 720px; margin: 0 auto; }
+  .ticket-courtesy .ticket-personal { margin: 0 auto; }
   .ticket-courtesy .ticket-codes { display: grid; grid-template-columns: minmax(130px, 160px); justify-content: center; }
   .ticket-courtesy .ticket-qr-item { justify-items: center; padding: 10px; border: 1px solid #d8cdb9; background: #fff; }
   .ticket-courtesy .ticket-qr-item .qr { width: clamp(70px, 28vw, 116px); height: clamp(70px, 28vw, 116px); min-height: 0; }
