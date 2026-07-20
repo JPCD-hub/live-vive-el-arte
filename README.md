@@ -17,9 +17,16 @@ La portada pública está en `./`; la administración protegida está en `./admi
 
 1. Crea el evento con fecha correcta y verifica que aparece en el selector.
 2. Prueba un QR regular, un QR de cortesía, un QR de beneficio y un registro manual desde dos teléfonos.
-3. Permite el acceso a la cámara del navegador del dispositivo de puerta.
+3. Prueba el lector en el teléfono de puerta y en un computador: permite el acceso a cámara, selecciona el evento activo y lee un QR válido en ambos equipos.
 4. Lleva un segundo teléfono o computador administrador y una conexión de respaldo.
 5. No abras la consola en navegadores incrustados de WhatsApp o Instagram; usa Chrome, Safari o Firefox directamente.
+
+## Cámara QR
+
+- El lector solicita permiso de cámara al pulsar **Escanear QR**. En teléfono intenta usar la cámara trasera; en computador usa la cámara disponible y permite cambiarla si hay más de una.
+- Si el permiso fue bloqueado, ábrelo desde el candado de la barra de direcciones y permite la cámara para `jpcd-hub.github.io`.
+- Cierra Zoom, Meet, WhatsApp Desktop u otra aplicación que esté usando la cámara antes de iniciar el lector.
+- Al cambiar de cámara, ocultar la pestaña, cerrar sesión o salir de la página, el lector libera la cámara automáticamente.
 
 ## Administración Y Seguridad
 

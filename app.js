@@ -89,7 +89,7 @@ function updateEntryControls() {
   $('#active-event').disabled = Boolean(scanner || scannerStarting || entryInFlight) || !state.events.length;
   $('#manual-person').disabled = entryInFlight || !state.people.length;
   $('#manual-checkin').disabled = blocked || !event || !state.people.length;
-  $('#start-scanner').disabled = blocked || !event || !state.people.length;
+  $('#start-scanner').disabled = blocked || !event;
 }
 function updateConnectionStatus() {
   const status = $('#connection-status');
@@ -185,6 +185,16 @@ function authErrorMessage(error) {
     'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
   };
   return messages[error.code] || `No se pudo iniciar sesión (${error.code || 'error desconocido'}).`;
+}
+function cameraErrorMessage(error) {
+  if (error instanceof UserMessageError) return error.message;
+  const messages = {
+    NotAllowedError: 'No se autorizó la cámara. Permítela desde el candado de la barra del navegador y vuelve a intentarlo.',
+    NotFoundError: 'No se encontró una cámara. Conecta una cámara o usa el ingreso manual.',
+    NotReadableError: 'La cámara está siendo usada por otra aplicación. Ciérrala e intenta de nuevo.',
+    OverconstrainedError: 'La cámara seleccionada no está disponible. Elige otra cámara e intenta de nuevo.',
+  };
+  return messages[error?.name] || 'No se pudo abrir la cámara. Revisa el permiso y vuelve a intentarlo.';
 }
 
 function updateAccessUi(user = auth.currentUser) {
@@ -839,9 +849,14 @@ async function startScanner() {
     return;
   }
   if (!window.isSecureContext) return setFeedback('La cámara requiere abrir la página mediante HTTPS.', true);
+  if (!navigator.mediaDevices?.getUserMedia) return setFeedback('Este navegador no permite usar la cámara. Abre la administración en Chrome, Safari o Firefox.', true);
   scannerStarting = true;
   updateEntryControls();
   try {
+    setFeedback('Solicitando permiso de cámara...');
+    const permissionStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    permissionStream.getTracks().forEach((track) => track.stop());
+    if (!scannerStarting) return;
     setFeedback('Cargando lector QR...');
     const Html5Qrcode = await loadLibrary('https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js', 'Html5Qrcode');
     if (!scannerStarting) return;
@@ -863,9 +878,10 @@ async function startScanner() {
     $('#qr-reader').hidden = false;
     $('#start-scanner').hidden = true;
     $('#stop-scanner').hidden = false;
-    const activeScanner = new Html5Qrcode('qr-reader');
+    let activeScanner = new Html5Qrcode('qr-reader');
     scanner = activeScanner;
-    await activeScanner.start({ deviceId: { exact: cameraSelect.value } }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decoded) => {
+    const scanConfig = { fps: 10, qrbox: { width: 220, height: 220 } };
+    const onDecode = async (decoded) => {
       if (scannerDecoding || entryInFlight) return;
       scannerDecoding = true;
       try {
@@ -882,10 +898,20 @@ async function startScanner() {
         await stopScanner(true);
         await submitEntry(operation, true);
       } catch (error) { reportOperationError(error); } finally { scannerDecoding = false; }
-    });
+    };
+    try {
+      await activeScanner.start({ deviceId: { exact: cameraSelect.value } }, scanConfig, onDecode);
+    } catch (selectedCameraError) {
+      if (!scannerStarting) throw selectedCameraError;
+      try { await activeScanner.clear(); } catch (_) { /* The selected camera never completed startup. */ }
+      activeScanner = new Html5Qrcode('qr-reader');
+      scanner = activeScanner;
+      await activeScanner.start({ facingMode: { ideal: 'environment' } }, scanConfig, onDecode);
+      setFeedback('La cámara elegida no respondió. Se está usando una cámara disponible.');
+    }
   } catch (error) {
     console.error(error);
-    setFeedback('No se pudo abrir la cámara. Autoriza el permiso o registra el ingreso manualmente.', true);
+    setFeedback(cameraErrorMessage(error), true);
     stopScanner();
   } finally {
     scannerStarting = false;

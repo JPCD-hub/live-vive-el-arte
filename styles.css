@@ -518,9 +518,18 @@ h2 {
 .feedback.error { color: #ffaaa5; }
 
 #qr-reader {
+  width: min(100%, 420px);
+  aspect-ratio: 1;
   margin-top: 16px;
   overflow: hidden;
   background: #fff;
+}
+
+#qr-reader video,
+#qr-reader img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
 }
 
 /* ========== EVENT LIST ========== */
