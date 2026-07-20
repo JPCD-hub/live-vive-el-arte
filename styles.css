@@ -876,6 +876,9 @@ textarea:focus-visible {
 
 .qr > table { border-collapse: collapse; }
 
+/* qrcodejs appends an image fallback after its canvas. Showing both stacks two QR codes. */
+.qr > canvas + img { display: none !important; }
+
 .ticket-qr-item .qr > canvas,
 .ticket-qr-item .qr > img,
 .ticket-qr-item .qr > table {
