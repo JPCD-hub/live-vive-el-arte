@@ -216,6 +216,7 @@ h2 {
   position: relative;
   justify-self: end;
   width: 230px;
+  aspect-ratio: 3 / 4;
   padding: 7px;
   background: #f7f0e4;
   box-shadow: var(--shadow);
@@ -224,7 +225,8 @@ h2 {
 
 .public-message-preview img {
   width: 100%;
-  aspect-ratio: 3 / 4;
+  height: 100%;
+  aspect-ratio: auto;
   object-fit: cover;
 }
 
@@ -272,6 +274,7 @@ h2 {
   transform: rotate(2deg);
   box-shadow: var(--shadow);
   width: min(100%, 340px);
+  aspect-ratio: 3 / 4;
   justify-self: end;
   padding: 7px;
   background: #f7f0e4;
@@ -279,8 +282,10 @@ h2 {
 
 .hero-card img {
   width: 100%;
-  aspect-ratio: 3 / 4;
+  height: 100%;
+  aspect-ratio: auto;
   object-fit: cover;
+  object-position: center;
 }
 
 .hero-card > span {
