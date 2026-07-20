@@ -29,10 +29,15 @@ La imagen social está en `assets/social-live.svg`. El icono PWA y favicon está
 La portada lee la colección `events`, que ahora solo contiene información pública de programación. Los campos existentes siguen funcionando:
 
 - `name` y `date` son obligatorios.
-- `description`, `time` y `location` son opcionales.
+- `description`, `time`, `location` e `imageUrl` son opcionales.
+- `status` puede ser `published`, `draft` o `cancelled`. Solo `published` puede leerse desde la portada; los documentos de eventos deben contener únicamente información pública de programación.
 - `createdAt` se conserva; `updatedAt` se agrega al editar.
 
-Los eventos pasados no aparecen en la agenda pública. No guardes información privada en documentos de `events`.
+Los eventos pasados no aparecen en la agenda pública. No guardes información privada en documentos de `events`. Al iniciar la consola con una cuenta administradora, los eventos heredados sin `status` se migran una sola vez a `published` sin modificar su fecha ni descripción.
+
+## Edición de personas
+
+Desde la lista de comunidad, selecciona **Editar**. Se pueden actualizar nombre, correo, teléfono y nota. El tipo de boleta se mantiene para proteger el historial. Si cambia el nombre, también se actualiza el nombre visible en su boleta pública.
 
 ## Regenerar una boleta
 

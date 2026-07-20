@@ -1,5 +1,5 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { collection, doc, getFirestore, onSnapshot, orderBy, query } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { collection, doc, getFirestore, onSnapshot, query, where } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBK9l6lVxoAfgiLmLmK2qJCIVwFc0xNfqI',
@@ -92,7 +92,7 @@ function renderPublicEvents(events) {
   const container = $('#public-events');
   const status = $('#public-events-status');
   container.replaceChildren();
-  const upcoming = events.filter((event) => !event.date || event.date >= localToday()).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const upcoming = events.filter((event) => event.status !== 'draft' && event.status !== 'cancelled' && (!event.date || event.date >= localToday())).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
   if (!upcoming.length) {
     container.append(create('p', 'Estamos preparando el próximo encuentro. Síguenos para conocer la nueva programación.', 'events-empty'));
     status.textContent = 'No hay eventos próximos por ahora.';
@@ -101,12 +101,26 @@ function renderPublicEvents(events) {
   status.textContent = `${upcoming.length} ${upcoming.length === 1 ? 'encuentro disponible' : 'encuentros disponibles'}.`;
   upcoming.forEach((event) => {
     const article = create('article', undefined, 'public-event-card');
+    if (event.imageUrl) {
+      try {
+        const imageUrl = new URL(event.imageUrl, window.location.href);
+        if (imageUrl.protocol === 'https:' || imageUrl.protocol === 'http:') {
+          const image = document.createElement('img');
+          image.src = imageUrl.toString();
+          image.alt = `Imagen del evento ${event.name || 'Live!'}`;
+          image.loading = 'lazy';
+          image.width = 640;
+          image.height = 360;
+          article.append(image);
+        }
+      } catch (_) { /* Invalid optional image URLs are not rendered. */ }
+    }
     const time = create('time', formatDate(event.date));
     if (event.date) time.dateTime = event.date;
     const title = create('h3', event.name || 'Encuentro Live!');
     const description = create('p', event.description || 'Pronto compartiremos más información sobre este encuentro.');
     article.append(time, title, description);
-    const meta = [event.time, event.location].filter(Boolean).join(' · ');
+    const meta = [event.status === 'published' ? 'Programado' : '', event.time, event.location].filter(Boolean).join(' · ');
     if (meta) article.append(create('p', meta, 'event-meta'));
     container.append(article);
   });
@@ -207,6 +221,7 @@ async function shareTicket(ticket) {
 }
 
 function openPublicTicket(token) {
+  document.body.classList.add('ticket-mode');
   const sections = ['#inicio', '#como-funciona', '.benefits-section', '#eventos', '#boleta', '#ubicacion', '.faq-section'];
   sections.forEach((selector) => { const node = $(selector); if (node) node.hidden = true; });
   $('#public-ticket-view').hidden = false;
@@ -299,7 +314,7 @@ if (token) {
     $('#public-ticket-status').textContent = 'El enlace de esta boleta no es válido.';
   }
 } else {
-  onSnapshot(query(collection(db, 'events'), orderBy('date', 'asc')), (snapshot) => renderPublicEvents(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))), (error) => {
+  onSnapshot(query(collection(db, 'events'), where('status', '==', 'published')), (snapshot) => renderPublicEvents(snapshot.docs.map((item) => ({ id: item.id, ...item.data() }))), (error) => {
     console.error(error);
     $('#public-events-status').textContent = 'No fue posible consultar la programación en este momento.';
     $('#public-events').replaceChildren(create('p', 'Estamos preparando el próximo encuentro. Inténtalo nuevamente más tarde.', 'events-empty'));

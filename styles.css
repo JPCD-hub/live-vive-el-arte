@@ -570,6 +570,7 @@ h2 {
   font-weight: bold;
   text-transform: uppercase;
 }
+.event-status { position: absolute; right: 18px; bottom: 42px; color: #5a625b; font-size: 10px; font-weight: bold; letter-spacing: .8px; text-transform: uppercase; }
 
 .event-delete {
   position: absolute;

@@ -45,6 +45,7 @@ let isAdmin = false;
 let ticketRenderNumber = 0;
 let authIssue = '';
 const pendingBenefitSync = new Set();
+const pendingLegacyEventMigration = new Set();
 const operationalSources = new Map();
 const submittingForms = new WeakSet();
 let entryInFlight = false;
@@ -68,8 +69,9 @@ function cycleVisits(ticket) { return ticket.ticketType === 'courtesy' ? (Number
 function ticketForPerson(person) { return state.tickets.get(person.ticketToken); }
 function countVisits(person) { return ticketForPerson(person)?.visits ?? state.checkins.filter((checkin) => checkin.personId === person.id).length; }
 function sortedEvents() { return state.events.slice().sort((a, b) => a.date.localeCompare(b.date)); }
-function currentEvent() { return state.events.find((event) => event.id === $('#active-event').value); }
-function nextEventAfter(event, events = state.events) { return events.slice().sort((a, b) => a.date.localeCompare(b.date)).find((candidate) => candidate.date > event.date); }
+function availableEvents(events = state.events) { return events.filter((event) => event.status === 'published'); }
+function currentEvent() { return availableEvents().find((event) => event.id === $('#active-event').value); }
+function nextEventAfter(event, events = state.events) { return availableEvents(events).slice().sort((a, b) => a.date.localeCompare(b.date)).find((candidate) => candidate.date > event.date); }
 function setFeedback(message, error = false) {
   const feedback = $('#checkin-feedback');
   feedback.textContent = message;
@@ -237,7 +239,19 @@ function render() {
   renderEvents();
   renderSelects();
   syncPendingBenefitsToTickets();
+  migrateLegacyEvents();
   updateConnectionStatus();
+}
+function migrateLegacyEvents() {
+  state.events.filter((event) => !Object.prototype.hasOwnProperty.call(event, 'status') && !pendingLegacyEventMigration.has(event.id)).forEach((event) => {
+    pendingLegacyEventMigration.add(event.id);
+    runTransaction(db, async (transaction) => {
+      const snapshot = await transaction.get(doc(db, 'events', event.id));
+      if (snapshot.exists() && !Object.prototype.hasOwnProperty.call(snapshot.data(), 'status')) transaction.update(snapshot.ref, { status: 'published', updatedAt: serverTimestamp() });
+    })
+      .catch((error) => console.error('No se pudo publicar un evento heredado.', error))
+      .finally(() => pendingLegacyEventMigration.delete(event.id));
+  });
 }
 function syncPendingBenefitsToTickets() {
   state.benefits.filter((benefit) => !benefit.usedAt && benefit.token && benefit.ticketToken).forEach((benefit) => {
@@ -270,17 +284,18 @@ function renderPeople() {
     const progress = isCourtesy(person) ? visits : visits % BENEFIT_VISITS;
     const label = isCourtesy(person) ? 'visitas' : 'ciclo';
     const upgrade = isCourtesy(person) && visits >= 3 ? `<button class="small-button upgrade" data-upgrade-person="${person.id}">Pasar a regular</button>` : '';
-    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${progress}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} ${label}</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button><button class="small-button" data-regenerate-ticket="${person.id}">Regenerar enlace</button>${upgrade}<button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
+    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${progress}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} ${label}</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button><button class="small-button" data-edit-person="${person.id}">Editar</button><button class="small-button" data-regenerate-ticket="${person.id}">Regenerar enlace</button>${upgrade}<button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
   }).join('');
 }
 function renderEvents() {
   $('#event-list').innerHTML = sortedEvents().reverse().map((event) => {
     const attendances = state.checkins.filter((item) => item.eventId === event.id).length;
-    return `<article class="event-card"><button class="small-button delete event-delete" data-delete-event="${event.id}">Eliminar</button><button class="small-button event-edit" data-edit-event="${event.id}">Editar</button><span class="event-date">${formatDate(event.date)}${event.time ? ` · ${escapeHtml(event.time)}` : ''}</span><h3>${escapeHtml(event.name)}</h3><p>${escapeHtml(event.description || 'Sin descripción.')}</p><span class="event-attendance">${attendances} ingresos</span></article>`;
+    const status = event.status === 'draft' ? 'Borrador' : event.status === 'cancelled' ? 'Cancelado' : 'Publicado';
+    return `<article class="event-card"><button class="small-button delete event-delete" data-delete-event="${event.id}">Eliminar</button><button class="small-button event-edit" data-edit-event="${event.id}">Editar</button><span class="event-date">${formatDate(event.date)}${event.time ? ` · ${escapeHtml(event.time)}` : ''}</span><h3>${escapeHtml(event.name)}</h3><p>${escapeHtml(event.description || 'Sin descripción.')}</p><span class="event-status">${status}</span><span class="event-attendance">${attendances} ingresos</span></article>`;
   }).join('');
 }
 function renderSelects() {
-  const events = sortedEvents();
+  const events = availableEvents().slice().sort((a, b) => a.date.localeCompare(b.date));
   const selectedEvent = $('#active-event').value;
   $('#active-event').innerHTML = '<option value="">Selecciona el evento activo</option>' + events.map((event) => `<option value="${event.id}">${escapeHtml(event.name)} · ${formatDate(event.date)}</option>`).join('');
   $('#active-event').value = events.some((event) => event.id === selectedEvent) ? selectedEvent : '';
@@ -379,6 +394,51 @@ async function createPerson(event) {
   $('#ticket-modal').showModal();
 }
 
+function openPersonForm(personId) {
+  const person = state.people.find((item) => item.id === personId);
+  const form = $('#person-form');
+  const editing = Boolean(person);
+  $('#person-id').value = person?.id || '';
+  $('#person-form-title').textContent = editing ? 'Editar persona' : 'Registrar persona';
+  $('#person-submit').textContent = editing ? 'Guardar cambios' : 'Crear boleta';
+  $('#person-name').value = person?.name || '';
+  $('#person-ticket-type').value = person?.ticketType || 'regular';
+  $('#person-ticket-type').disabled = editing;
+  $('#person-email').value = person?.email || '';
+  $('#person-phone').value = person?.phone || '';
+  $('#person-note').value = person?.note || '';
+  $('#person-form-feedback').textContent = '';
+  form.showModal();
+}
+
+async function updatePerson(event) {
+  requireAdmin();
+  const form = event.currentTarget;
+  const personId = $('#person-id').value;
+  const existing = state.people.find((item) => item.id === personId);
+  if (!existing) userError('No se encontró la persona para actualizar.');
+  const updates = {
+    name: $('#person-name').value.trim(),
+    email: $('#person-email').value.trim(),
+    phone: $('#person-phone').value.trim(),
+    note: $('#person-note').value.trim(),
+  };
+  await runTransaction(db, async (transaction) => {
+    const [personSnapshot, ticketSnapshot] = await Promise.all([
+      transaction.get(doc(db, 'people', personId)),
+      transaction.get(doc(db, 'tickets', existing.ticketToken)),
+    ]);
+    if (!personSnapshot.exists() || !ticketSnapshot.exists()) userError('No se encontró la boleta de esta persona.');
+    transaction.update(personSnapshot.ref, updates);
+    if (ticketSnapshot.data().name !== updates.name) transaction.update(ticketSnapshot.ref, { name: updates.name });
+  });
+  form.reset();
+  $('#person-id').value = '';
+  $('#person-ticket-type').disabled = false;
+  $('#person-form').close();
+  setFeedback(`Perfil actualizado: ${updates.name}.`);
+}
+
 async function addBenefit(transaction, person, ticket, event, visitNumber, events = state.events) {
   const nextEvent = nextEventAfter(event, events);
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
@@ -416,10 +476,12 @@ async function registerCheckin(personId, event = currentEvent()) {
     const person = state.people.find((item) => item.id === personId);
     if (!person || !event) userError('Selecciona una persona y un evento.');
     await runTransaction(db, async (transaction) => {
-      const [existingCheckin, ticketSnapshot] = await Promise.all([
+      const [existingCheckin, ticketSnapshot, eventSnapshot] = await Promise.all([
         transaction.get(checkinRef(event.id, person.id)),
         transaction.get(doc(db, 'tickets', person.ticketToken)),
+        transaction.get(doc(db, 'events', event.id)),
       ]);
+      if (!eventSnapshot.exists() || ['draft', 'cancelled'].includes(eventSnapshot.data().status)) userError('El evento ya no está disponible para registrar ingresos.');
       if (existingCheckin.exists()) userError(`${person.name} ya tiene un ingreso registrado para este evento.`);
       if (!ticketSnapshot.exists()) userError('No se encontró la boleta de esta persona.');
       const ticket = ticketSnapshot.data();
@@ -427,7 +489,8 @@ async function registerCheckin(personId, event = currentEvent()) {
       if (isCourtesy(person) && visits >= 3) userError(`La boleta de cortesía de ${person.name} ya utilizó sus 3 ingresos.`);
       const newVisits = visits + 1;
       const updates = { visits: newVisits };
-      if (!isCourtesy(person) && newVisits % BENEFIT_VISITS === 0) updates.benefits = await addBenefit(transaction, person, ticket, event, newVisits / BENEFIT_VISITS);
+      const currentEventData = { id: event.id, ...eventSnapshot.data() };
+      if (!isCourtesy(person) && newVisits % BENEFIT_VISITS === 0) updates.benefits = await addBenefit(transaction, person, ticket, currentEventData, newVisits / BENEFIT_VISITS);
       transaction.set(checkinRef(event.id, person.id), { personId: person.id, eventId: event.id, type: 'regular', checkedAt: serverTimestamp() });
       transaction.update(doc(db, 'tickets', person.ticketToken), updates);
     });
@@ -447,19 +510,22 @@ async function redeemBenefit(benefitToken, event = currentEvent()) {
     const person = state.people.find((item) => item.id === benefit.personId);
     if (!person) userError('No se encontró la persona de este beneficio.');
     await runTransaction(db, async (transaction) => {
-      const [freshBenefit, existingCheckin, ticketSnapshot] = await Promise.all([
+      const [freshBenefit, existingCheckin, ticketSnapshot, eventSnapshot] = await Promise.all([
         transaction.get(doc(db, 'benefits', benefit.id)),
         transaction.get(checkinRef(event.id, person.id)),
         transaction.get(doc(db, 'tickets', person.ticketToken)),
+        transaction.get(doc(db, 'events', event.id)),
       ]);
+      if (!eventSnapshot.exists() || ['draft', 'cancelled'].includes(eventSnapshot.data().status)) userError('El evento ya no está disponible para canjear beneficios.');
       if (!freshBenefit.exists() || freshBenefit.data().usedAt) userError('Este QR de beneficio ya fue utilizado.');
       if (freshBenefit.data().eventId && freshBenefit.data().eventId !== event.id) userError(`Este beneficio es válido para ${freshBenefit.data().eventName}.`);
       if (existingCheckin.exists()) userError(`${person.name} ya tiene un ingreso en este evento.`);
       if (!ticketSnapshot.exists()) userError('No se encontró la boleta de este beneficio.');
+      const currentEventData = { id: event.id, ...eventSnapshot.data() };
       const ticket = ticketSnapshot.data();
       const benefits = (Array.isArray(ticket.benefits) ? ticket.benefits : []).filter((item) => item.token !== benefit.token);
       transaction.set(checkinRef(event.id, person.id), { personId: person.id, eventId: event.id, type: 'benefit', benefitToken: benefit.token, checkedAt: serverTimestamp() });
-      transaction.update(doc(db, 'benefits', benefit.id), { eventId: event.id, eventName: event.name, pending: false, usedAt: serverTimestamp() });
+      transaction.update(doc(db, 'benefits', benefit.id), { eventId: event.id, eventName: currentEventData.name, pending: false, usedAt: serverTimestamp() });
       transaction.update(doc(db, 'tickets', person.ticketToken), { benefits });
     });
     setFeedback(`Beneficio canjeado para ${person.name}. No se registra asistencia adicional.`);
@@ -559,6 +625,8 @@ async function createEvent(event) {
     date: $('#event-date').value,
     time: $('#event-time').value,
     location: $('#event-location').value.trim(),
+    status: $('#event-status').value,
+    imageUrl: $('#event-image-url').value.trim(),
     description: $('#event-description').value.trim(),
     createdAt: serverTimestamp(),
   };
@@ -578,7 +646,10 @@ function openEventForm(eventId) {
   $('#event-date').value = event?.date || localDate();
   $('#event-time').value = event?.time || '';
   $('#event-location').value = event?.location || '';
+  $('#event-status').value = event?.status || 'published';
+  $('#event-image-url').value = event?.imageUrl || '';
   $('#event-description').value = event?.description || '';
+  $('#event-form-feedback').textContent = '';
   form.showModal();
 }
 
@@ -594,16 +665,52 @@ async function updateEvent(event) {
     date: $('#event-date').value,
     time: $('#event-time').value,
     location: $('#event-location').value.trim(),
+    status: $('#event-status').value,
+    imageUrl: $('#event-image-url').value.trim(),
     description: $('#event-description').value.trim(),
     updatedAt: serverTimestamp(),
   };
-  await setDoc(doc(db, 'events', eventId), { ...existingData, ...updates }, { merge: false });
+  const existingPublished = existing.status !== 'draft' && existing.status !== 'cancelled';
+  if (existingPublished && updates.status !== 'published') userError('Un evento publicado no puede despublicarse desde esta consola. Crea una nueva programación si necesitas reemplazarlo.');
+  if (updates.name !== existing.name && (state.checkins.some((item) => item.eventId === eventId) || state.benefits.some((item) => item.eventId === eventId))) userError('No se puede cambiar el nombre de un evento con ingresos o beneficios asociados.');
+  const affectedBenefits = updates.name !== existing.name
+    ? await getDocs(query(collection(db, 'benefits'), where('eventId', '==', eventId)))
+    : null;
+  const linkedBenefits = existing.status === 'published' && updates.status !== 'published'
+    ? await getDocs(query(collection(db, 'benefits'), where('eventId', '==', eventId)))
+    : null;
+  if (linkedBenefits?.docs.some((item) => !item.data().usedAt)) userError('No se puede despublicar este evento mientras tenga beneficios disponibles. Canjéalos o reasígnalos primero.');
+  if (affectedBenefits && affectedBenefits.docs.length > 180) userError('Este evento tiene demasiados beneficios asignados para cambiar su nombre desde el navegador. Contacta al soporte técnico.');
+  if (affectedBenefits) await updateEventAndBenefitNames(eventId, { ...existingData, ...updates }, affectedBenefits, updates.name);
+  else await setDoc(doc(db, 'events', eventId), { ...existingData, ...updates }, { merge: false });
+  if (existing.status !== 'published' && updates.status === 'published') await resolvePendingBenefits({ id: eventId, ...existingData, ...updates });
   form.reset();
   $('#event-id').value = '';
   $('#event-form').close();
 }
 
+async function updateEventAndBenefitNames(eventId, eventData, matches, eventName) {
+  await runTransaction(db, async (transaction) => {
+    const [eventSnapshot, ...benefitSnapshots] = await Promise.all([
+      transaction.get(doc(db, 'events', eventId)),
+      ...matches.docs.map((item) => transaction.get(doc(db, 'benefits', item.id))),
+    ]);
+    if (!eventSnapshot.exists()) userError('No se encontró el evento para actualizar.');
+    const benefits = benefitSnapshots.filter((item) => item.exists()).map((item) => ({ id: item.id, ...item.data() }));
+    const ticketTokens = [...new Set(benefits.filter((benefit) => !benefit.usedAt).map((benefit) => benefit.ticketToken))];
+    const ticketSnapshots = await Promise.all(ticketTokens.map((token) => transaction.get(doc(db, 'tickets', token))));
+    transaction.set(eventSnapshot.ref, eventData, { merge: false });
+    benefits.forEach((benefit) => transaction.update(doc(db, 'benefits', benefit.id), { eventName }));
+    ticketSnapshots.forEach((snapshot) => {
+      if (!snapshot.exists()) return;
+      const ticketBenefits = Array.isArray(snapshot.data().benefits) ? snapshot.data().benefits : [];
+      transaction.update(snapshot.ref, { benefits: ticketBenefits.map((benefit) => benefits.some((item) => item.token === benefit.token) ? { ...benefit, eventName } : benefit) });
+    });
+  });
+}
+
 async function resolvePendingBenefits(newEvent) {
+  if (newEvent.status && newEvent.status !== 'published') return;
   const events = [...state.events.filter((event) => event.id !== newEvent.id), newEvent];
   const pending = await getDocs(query(collection(db, 'benefits'), where('eventId', '==', null)));
   for (const pendingSnapshot of pending.docs) {
@@ -637,7 +744,12 @@ async function submitForm(form, operation) {
   try {
     await operation();
   } catch (error) {
-    reportOperationError(error);
+    console.error(error);
+    const feedback = form.querySelector('.feedback');
+    if (feedback) {
+      feedback.textContent = error instanceof UserMessageError ? error.message : 'No se pudo guardar el cambio. Revisa tu conexión y los permisos.';
+      feedback.classList.add('error');
+    } else reportOperationError(error);
   } finally {
     submittingForms.delete(form);
     form.removeAttribute('aria-busy');
@@ -648,6 +760,7 @@ async function submitForm(form, operation) {
 document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', () => {
   if (!isAdmin) return;
   if (button.dataset.open === 'event-form') openEventForm();
+  else if (button.dataset.open === 'person-form') openPersonForm();
   else $(`#${button.dataset.open}`).showModal();
 }));
 $('#person-search').addEventListener('input', renderPeople);
@@ -656,9 +769,11 @@ $('#people-list').addEventListener('click', (event) => {
   const deleteButton = event.target.closest('[data-delete-person]');
   const upgradeButton = event.target.closest('[data-upgrade-person]');
   const regenerateButton = event.target.closest('[data-regenerate-ticket]');
+  const editButton = event.target.closest('[data-edit-person]');
   if (ticketButton) showTicket(ticketButton.dataset.ticket);
   if (upgradeButton) upgradeToRegular(upgradeButton.dataset.upgradePerson);
   if (regenerateButton) regenerateTicket(regenerateButton.dataset.regenerateTicket);
+  if (editButton) openPersonForm(editButton.dataset.editPerson);
   if (deleteButton) deletePerson(deleteButton.dataset.deletePerson);
 });
 $('#event-list').addEventListener('click', (event) => {
@@ -670,7 +785,7 @@ $('#event-list').addEventListener('click', (event) => {
 $('#new-person-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   if (event.submitter?.value === 'cancel') return $('#person-form').close();
-  await submitForm(event.currentTarget, () => createPerson(event));
+  await submitForm(event.currentTarget, () => $('#person-id').value ? updatePerson(event) : createPerson(event));
 });
 $('#new-event-form').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -728,12 +843,27 @@ async function startScanner() {
     setFeedback('Cargando lector QR...');
     const Html5Qrcode = await loadLibrary('https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js', 'Html5Qrcode');
     if (!scannerStarting) return;
+    const cameras = await Html5Qrcode.getCameras();
+    if (!scannerStarting) return;
+    if (!cameras.length) userError('Este dispositivo no tiene una cámara disponible. Usa el ingreso manual.');
+    const cameraChoice = $('#camera-choice');
+    const cameraSelect = $('#camera-select');
+    const selectedCamera = cameraSelect.value;
+    cameraSelect.replaceChildren(...cameras.map((camera, index) => {
+      const option = document.createElement('option');
+      option.value = camera.id;
+      option.textContent = camera.label || `Cámara ${index + 1}`;
+      return option;
+    }));
+    const rearCamera = cameras.find((camera) => /back|rear|environment|trasera/i.test(camera.label));
+    cameraSelect.value = cameras.some((camera) => camera.id === selectedCamera) ? selectedCamera : (rearCamera?.id || cameras[0].id);
+    cameraChoice.hidden = cameras.length < 2;
     $('#qr-reader').hidden = false;
     $('#start-scanner').hidden = true;
     $('#stop-scanner').hidden = false;
     const activeScanner = new Html5Qrcode('qr-reader');
     scanner = activeScanner;
-    await activeScanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decoded) => {
+    await activeScanner.start({ deviceId: { exact: cameraSelect.value } }, { fps: 10, qrbox: { width: 220, height: 220 } }, async (decoded) => {
       if (scannerDecoding || entryInFlight) return;
       scannerDecoding = true;
       try {
@@ -766,7 +896,7 @@ async function stopScanner(keepDecodeLock = false) {
   scannerStarting = false;
   if (activeScanner) {
     try { await activeScanner.stop(); } catch (_) { /* The scanner did not start completely. */ }
-    try { activeScanner.clear(); } catch (_) { /* The scanner was already cleared. */ }
+    try { await activeScanner.clear(); } catch (_) { /* The scanner was already cleared. */ }
   }
   if (!keepDecodeLock) scannerDecoding = false;
   $('#qr-reader').hidden = true;
@@ -776,6 +906,11 @@ async function stopScanner(keepDecodeLock = false) {
 }
 $('#start-scanner').addEventListener('click', startScanner);
 $('#stop-scanner').addEventListener('click', stopScanner);
+$('#camera-select').addEventListener('change', async () => {
+  if (!scanner) return;
+  await stopScanner();
+  startScanner();
+});
 
 window.addEventListener('online', updateConnectionStatus);
 window.addEventListener('offline', updateConnectionStatus);
