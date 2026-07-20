@@ -54,6 +54,20 @@ let scannerDecoding = false;
 let offlineCacheAvailable = false;
 let displayedPersonId = null;
 const libraryPromises = new Map();
+const TICKET_STAMP_LAYOUTS = {
+  regular: [
+    { x: 48, y: 55, size: 15 },
+    { x: 61, y: 55, size: 15 },
+    { x: 74, y: 55, size: 15 },
+    { x: 48, y: 68, size: 15 },
+    { x: 61, y: 68, size: 15 },
+  ],
+  courtesy: [
+    { x: 60, y: 53, size: 11 },
+    { x: 72, y: 53, size: 11 },
+    { x: 83, y: 53, size: 11 },
+  ],
+};
 
 function localDate() {
   const now = new Date();
@@ -258,6 +272,7 @@ function render() {
   syncPendingBenefitsToTickets();
   migrateLegacyEvents();
   updateConnectionStatus();
+  refreshDisplayedTicketFromState();
 }
 function migrateLegacyEvents() {
   state.events.filter((event) => !Object.prototype.hasOwnProperty.call(event, 'status') && !pendingLegacyEventMigration.has(event.id)).forEach((event) => {
@@ -329,7 +344,8 @@ function renderTicket(container, ticket) {
   const completed = Math.min(cycleVisits(ticket), required);
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
   const renderId = ++ticketRenderNumber;
-  const statusStamps = Array.from({ length: required }, (_, index) => `<span class="reference-stamp reference-stamp-${index + 1} ${index < completed ? 'active' : ''}" aria-label="Visita ${index + 1}${index < completed ? ' registrada' : ' pendiente'}"></span>`).join('');
+  const layout = courtesy ? TICKET_STAMP_LAYOUTS.courtesy : TICKET_STAMP_LAYOUTS.regular;
+  const statusStamps = layout.map((stamp, index) => `<span class="reference-stamp${index < completed ? ' active' : ''}" style="--stamp-x: ${stamp.x}%; --stamp-y: ${stamp.y}%; --stamp-size: ${stamp.size}%;" aria-label="Visita ${index + 1}${index < completed ? ' registrada' : ' pendiente'}" data-stamp-index="${index}"></span>`).join('');
   const description = courtesy
     ? visits >= 3
       ? 'Las 3 cortesías ya fueron utilizadas. Esta boleta no admite más ingresos.'
@@ -366,6 +382,63 @@ function showTicket(personId) {
   displayedPersonId = personId;
   renderTicket($('#ticket-content'), ticket);
   if (!$('#ticket-modal').open) $('#ticket-modal').showModal();
+}
+
+function updateTicketStampsAdmin(container, ticket) {
+  const courtesy = ticket.ticketType === 'courtesy';
+  const required = requiredVisits(ticket);
+  const completed = Math.min(cycleVisits(ticket), required);
+  const stamps = container.querySelectorAll('.reference-stamp');
+  stamps.forEach((stamp, index) => {
+    const wasActive = stamp.classList.contains('active');
+    const shouldBeActive = index < completed;
+    if (shouldBeActive && !wasActive) {
+      stamp.classList.add('active', 'animate-in');
+      stamp.setAttribute('aria-label', `Visita ${index + 1} registrada`);
+      stamp.addEventListener('animationend', () => stamp.classList.remove('animate-in'), { once: true });
+    } else if (!shouldBeActive && wasActive) {
+      stamp.classList.remove('active');
+      stamp.setAttribute('aria-label', `Visita ${index + 1} pendiente`);
+    }
+  });
+}
+
+function updateTicketVisitTextAdmin(container, ticket) {
+  const visits = Number(ticket.visits) || 0;
+  const courtesy = ticket.ticketType === 'courtesy';
+  const required = requiredVisits(ticket);
+  const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
+  const visitsEl = container.querySelector('.ticket-visits');
+  if (!visitsEl) return;
+  const description = courtesy
+    ? visits >= 3
+      ? 'Las 3 cortesías ya fueron utilizadas. Esta boleta no admite más ingresos.'
+      : `Entrada de cortesía: ${visits} de 3 miércoles utilizados.`
+    : benefits.length
+      ? `Tienes ${benefits.length} ${benefits.length === 1 ? 'beneficio disponible' : 'beneficios disponibles'} para usar en los eventos indicados.`
+      : visits && visits % BENEFIT_VISITS === 0
+        ? `Completaste ${visits} asistencias. Tu nuevo ciclo comienza en 0 de ${BENEFIT_VISITS}.`
+        : `${cycleVisits(ticket)} de ${BENEFIT_VISITS} asistencias en el ciclo actual · ${visits} en total.`;
+  visitsEl.textContent = description;
+}
+
+function refreshDisplayedTicketFromState() {
+  if (!displayedTicket || !document.querySelector('#ticket-modal')?.open) return;
+  const updatedTicket = state.tickets.get(displayedTicket.id);
+  if (!updatedTicket) return;
+  const prevVisits = displayedTicket.visits;
+  const prevBenefits = JSON.stringify(displayedTicket.benefits || []);
+  displayedTicket = updatedTicket;
+  const container = document.querySelector('#ticket-content');
+  if (!container) return;
+  const newVisits = updatedTicket.visits;
+  const newBenefits = JSON.stringify(updatedTicket.benefits || []);
+  if (prevVisits !== newVisits || prevBenefits !== newBenefits) {
+    updateTicketStampsAdmin(container, updatedTicket);
+    updateTicketVisitTextAdmin(container, updatedTicket);
+    const region = document.querySelector('#ticket-live-region');
+    if (region && prevVisits !== newVisits) region.textContent = `Asistencia registrada. Total: ${newVisits} visitas.`;
+  }
 }
 function shareTicket() {
   if (!displayedTicket) return;
@@ -953,6 +1026,10 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) stopScanner();
 });
 window.addEventListener('pagehide', () => { stopScanner(); });
+
+if (new URLSearchParams(window.location.search).get('debugStamps') === '1') {
+  document.body.classList.add('debug-stamps');
+}
 
 $('#event-date').value = localDate();
 onAuthStateChanged(auth, async (user) => {

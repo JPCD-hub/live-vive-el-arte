@@ -1,7 +1,7 @@
 const CACHE_PREFIX = 'live-vive-el-arte-public-';
-const CACHE = `${CACHE_PREFIX}v7`;
+const CACHE = `${CACHE_PREFIX}v8`;
 const LEGACY_CACHES = ['live-public-shell-v1'];
-const SHELL = ['./', './index.html', './public.css?v=9', './public.js?v=4', './assets/icon.svg', './assets/social-live.svg', './Boleta%202.jpeg', './boleta%201.jpeg'];
+const SHELL = ['./', './index.html', './public.css?v=10', './public.js?v=5', './assets/icon.svg', './assets/social-live.svg', './Boleta%202.jpeg', './boleta%201.jpeg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

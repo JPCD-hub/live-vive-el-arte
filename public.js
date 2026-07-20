@@ -24,6 +24,22 @@ const PUBLIC_CONFIG = {
 const $ = (selector) => document.querySelector(selector);
 let qrLibraryPromise;
 let installPrompt;
+const TICKET_STAMP_LAYOUTS = {
+  regular: [
+    { x: 48, y: 55, size: 15 },
+    { x: 61, y: 55, size: 15 },
+    { x: 74, y: 55, size: 15 },
+    { x: 48, y: 68, size: 15 },
+    { x: 61, y: 68, size: 15 },
+  ],
+  courtesy: [
+    { x: 60, y: 53, size: 11 },
+    { x: 72, y: 53, size: 11 },
+    { x: 83, y: 53, size: 11 },
+  ],
+};
+let previousPublicTicketState = null;
+let publicTicketRenderId = 0;
 
 function create(tag, text, className) {
   const node = document.createElement(tag);
@@ -138,6 +154,8 @@ function renderTicket(ticket) {
   const container = $('#public-ticket-content');
   const { visits, courtesy, required, progress } = ticketProgress(ticket);
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
+  const layout = courtesy ? TICKET_STAMP_LAYOUTS.courtesy : TICKET_STAMP_LAYOUTS.regular;
+  const renderId = ++publicTicketRenderId;
   const article = create('article', undefined, `digital-ticket ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}`);
   const grid = create('div', undefined, 'digital-ticket-grid');
   const art = create('div', undefined, 'digital-ticket-art');
@@ -147,7 +165,15 @@ function renderTicket(ticket) {
   image.height = courtesy ? 1024 : 1440;
   image.alt = `Diseño de boleta ${courtesy ? 'de cortesía' : 'regular'} Live! Vive el Arte`;
   art.append(image);
-  for (let index = 0; index < required; index += 1) art.append(create('span', undefined, `ticket-art-stamp ticket-art-stamp-${index + 1}${index < progress ? ' active' : ''}`));
+  layout.forEach((stamp, index) => {
+    const el = create('span', undefined, `ticket-art-stamp${index < progress ? ' active' : ''}`);
+    el.style.setProperty('--stamp-x', `${stamp.x}%`);
+    el.style.setProperty('--stamp-y', `${stamp.y}%`);
+    el.style.setProperty('--stamp-size', `${stamp.size}%`);
+    el.setAttribute('aria-label', `Visita ${index + 1}${index < progress ? ' registrada' : ' pendiente'}`);
+    el.setAttribute('data-stamp-index', String(index));
+    art.append(el);
+  });
   const body = create('div', undefined, 'digital-ticket-body');
   const identity = document.createElement('div');
   identity.append(create('p', `BOLETA DIGITAL · ${courtesy ? 'CORTESÍA' : 'REGULAR'}`, 'ticket-type-label'));
@@ -193,7 +219,85 @@ function renderTicket(ticket) {
   body.append(qrArea, privacy, actions);
   grid.append(art, body);
   article.append(grid);
+  article.setAttribute('data-benefit-tokens', benefits.map((b) => b.token).join(','));
+  article.setAttribute('data-ticket-token', ticket.id);
   container.replaceChildren(article);
+  previousPublicTicketState = { ticketToken: ticket.id, visits: ticket.visits, benefits: benefits.map((b) => b.token).join(','), required, courtesy };
+}
+
+function updateTicketStamps(container, ticket) {
+  const { courtesy, required, progress } = ticketProgress(ticket);
+  const stamps = container.querySelectorAll('.ticket-art-stamp');
+  stamps.forEach((stamp, index) => {
+    const wasActive = stamp.classList.contains('active');
+    const shouldBeActive = index < progress;
+    if (shouldBeActive && !wasActive) {
+      stamp.classList.add('active', 'animate-in');
+      stamp.setAttribute('aria-label', `Visita ${index + 1} registrada`);
+      stamp.addEventListener('animationend', () => stamp.classList.remove('animate-in'), { once: true });
+    } else if (!shouldBeActive && wasActive) {
+      stamp.classList.remove('active');
+      stamp.setAttribute('aria-label', `Visita ${index + 1} pendiente`);
+    }
+  });
+}
+
+function updateTicketVisitText(container, ticket) {
+  const { visits, courtesy, required, progress } = ticketProgress(ticket);
+  const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
+  const visitsEl = container.querySelector('.progress-copy');
+  if (visitsEl) {
+    visitsEl.textContent = courtesy
+      ? (visits >= required ? 'Las tres cortesías fueron utilizadas.' : `${progress} de ${required} miércoles utilizados.`)
+      : `${progress} de ${required} asistencias en el ciclo actual · ${visits} en total.`;
+  }
+  const fill = container.querySelector('.progress-value');
+  if (fill) fill.style.width = `${(progress / required) * 100}%`;
+}
+
+function updateTicketBenefits(container, ticket) {
+  const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
+  const currentTokens = benefits.map((b) => b.token).join(',');
+  const renderedTokens = container.getAttribute('data-benefit-tokens') || '';
+  if (currentTokens !== renderedTokens) {
+    container.setAttribute('data-benefit-tokens', currentTokens);
+    const qrArea = container.querySelector('.ticket-qr-area');
+    if (!qrArea) return;
+    qrArea.querySelectorAll('.ticket-qr-card.reward').forEach((el) => el.remove());
+    benefits.forEach((benefit) => {
+      const benefitCard = create('div', undefined, 'ticket-qr-card reward');
+      benefitCard.append(create('span', `Beneficio · ${benefit.eventName}`));
+      const benefitQr = create('div', undefined, 'ticket-qr');
+      benefitCard.append(benefitQr);
+      qrArea.append(benefitCard);
+      appendQr(benefitQr, { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918');
+    });
+    const benefitText = container.querySelector('.ticket-benefit');
+    if (benefits.length && benefitText) benefitText.textContent = `Beneficio disponible: ${benefits.map((item) => item.eventName).join(', ')}.`;
+    else if (benefits.length && !benefitText) {
+      const body = container.querySelector('.digital-ticket-body');
+      const qrAreaEl = container.querySelector('.ticket-qr-area');
+      const bp = create('p', `Beneficio disponible: ${benefits.map((item) => item.eventName).join(', ')}.`, 'ticket-benefit');
+      if (qrAreaEl) body.insertBefore(bp, qrAreaEl);
+    } else if (!benefits.length && benefitText) benefitText.remove();
+  }
+}
+
+function updatePublicTicketRealtime(ticket) {
+  const container = $('#public-ticket-content');
+  const article = container.querySelector('.digital-ticket');
+  if (!article) { renderTicket(ticket); return; }
+  const prev = previousPublicTicketState;
+  const currentBenefitTokens = (Array.isArray(ticket.benefits) ? ticket.benefits : []).map((b) => b.token).join(',');
+  if (prev && prev.ticketToken === ticket.id && prev.visits !== ticket.visits) {
+    updateTicketStamps(article, ticket);
+    updateTicketVisitText(article, ticket);
+  }
+  if (prev && prev.ticketToken === ticket.id && prev.benefits !== currentBenefitTokens) {
+    updateTicketBenefits(article, ticket);
+  }
+  if (!prev || prev.ticketToken !== ticket.id) renderTicket(ticket);
+  previousPublicTicketState = { ticketToken: ticket.id, visits: ticket.visits, benefits: currentBenefitTokens, required: requiredVisits(ticket), courtesy: ticket.ticketType === 'courtesy' };
 }
 
 async function copyTicketLink(ticket) {
@@ -223,6 +327,7 @@ async function shareTicket(ticket) {
 
 function openPublicTicket(token) {
   document.body.classList.add('ticket-mode');
+  if (new URLSearchParams(window.location.search).get('debugStamps') === '1') document.body.classList.add('debug-stamps');
   const sections = ['#inicio', '#como-funciona', '.benefits-section', '#eventos', '#boleta', '#ubicacion', '.faq-section'];
   sections.forEach((selector) => { const node = $(selector); if (node) node.hidden = true; });
   $('#public-ticket-view').hidden = false;
@@ -235,8 +340,8 @@ function openPublicTicket(token) {
     }
     const ticket = { id: snapshot.id, ...snapshot.data() };
     $('#public-ticket-status').textContent = 'Tu boleta se actualiza en tiempo real.';
-    renderTicket(ticket);
-    $('#ticket-page-title').focus();
+    updatePublicTicketRealtime(ticket);
+    if (!previousPublicTicketState || previousPublicTicketState.ticketToken !== ticket.id) $('#ticket-page-title').focus();
   }, (error) => {
     console.error(error);
     $('#public-ticket-status').textContent = navigator.onLine ? 'No fue posible abrir la boleta. Inténtalo de nuevo.' : 'No hay conexión para abrir esta boleta.';

@@ -104,18 +104,12 @@ h3 { color: var(--green); font-size: 20px; line-height: 1.05; }
 .progress-copy { margin: 0; color: #48534c; }
 .progress-track { height: 9px; overflow: hidden; background: #d8cdb9; }
 .progress-value { display: block; height: 100%; background: var(--green); }
-.ticket-art-stamp { position: absolute; z-index: 1; display: grid; width: 15%; aspect-ratio: 1; place-items: center; border: 2px solid transparent; border-radius: 50%; background: transparent; transform: translate(-50%, -50%); }
+.ticket-art-stamp { position: absolute; z-index: 1; display: grid; width: var(--stamp-size, 15%); aspect-ratio: 1; left: var(--stamp-x); top: var(--stamp-y); place-items: center; border: 2px solid transparent; border-radius: 50%; background: transparent; transform: translate(-50%, -50%); }
 .ticket-art-stamp::before { position: absolute; top: 50%; left: 50%; width: 65%; height: 65%; border-radius: 50%; background: #f4eddf; content: ""; transform: translate(-50%, -50%); }
 .ticket-art-stamp.active::after { position: absolute; top: 50%; left: 50%; width: 32%; height: 48%; border-radius: 50%; background: linear-gradient(132deg, transparent 42%, #f4eddf 44%, #f4eddf 53%, transparent 55%), #4a2708; content: ""; transform: translate(-50%, -50%) rotate(28deg); }
-.ticket-regular .ticket-art-stamp-1 { left: 47.5%; top: 54%; }
-.ticket-regular .ticket-art-stamp-2 { left: 60.5%; top: 54%; }
-.ticket-regular .ticket-art-stamp-3 { left: 73.5%; top: 54%; }
-.ticket-regular .ticket-art-stamp-4 { left: 47.5%; top: 67%; }
-.ticket-regular .ticket-art-stamp-5 { left: 60.5%; top: 67%; }
-.ticket-courtesy .ticket-art-stamp { width: 11%; }
-.ticket-courtesy .ticket-art-stamp-1 { left: 59.5%; top: 52.5%; }
-.ticket-courtesy .ticket-art-stamp-2 { left: 71.5%; top: 52.5%; }
-.ticket-courtesy .ticket-art-stamp-3 { left: 83.5%; top: 52.5%; }
+.ticket-courtesy .ticket-art-stamp { width: var(--stamp-size, 11%); }
+.ticket-art-stamp.animate-in { animation: stamp-in .4s ease-out; }
+@keyframes stamp-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.7) rotate(-8deg); } to { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); } }
 .ticket-benefit { padding: 14px; border-left: 3px solid var(--red); color: var(--green); background: #fff8ea; font-weight: 700; }
 .ticket-qr-area { display: flex; flex-wrap: wrap; gap: 14px; align-items: start; padding-top: 20px; border-top: 1px solid var(--line); }
 .ticket-qr-card { display: grid; gap: 8px; justify-items: center; min-width: 132px; padding: 12px; border: 1px solid var(--line); color: var(--green); background: #fff; font-size: 10px; font-weight: 700; letter-spacing: .8px; text-align: center; text-transform: uppercase; }
@@ -174,4 +168,11 @@ h3 { color: var(--green); font-size: 20px; line-height: 1.05; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+  .ticket-art-stamp.animate-in { animation: none !important; opacity: 1 !important; }
 }
+
+.debug-stamps .ticket-art, .debug-stamps .digital-ticket-art { outline: 2px dashed red; }
+.debug-stamps .ticket-art-stamp { outline: 1px solid lime; background: rgba(0, 255, 0, .15); }
+.debug-stamps .ticket-art-stamp::after { content: attr(data-stamp-index) !important; position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: red; background: rgba(255,255,255,.85); padding: 1px 3px; border-radius: 2px; white-space: nowrap; width: auto; height: auto; border-radius: 0; background: rgba(255,255,255,.85); }
+.debug-stamps .ticket-art-stamp.active::after { content: "" !important; width: 32%; height: 48%; border-radius: 50%; background: linear-gradient(132deg, transparent 42%, #f4eddf 44%, #f4eddf 53%, transparent 55%), #4a2708; }
+.debug-stamps .ticket-art-stamp::before { outline: 1px solid cyan; }

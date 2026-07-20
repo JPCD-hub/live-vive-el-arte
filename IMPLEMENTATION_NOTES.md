@@ -7,6 +7,106 @@
 - `app.js` carga `qrcodejs` al abrir una boleta y `html5-qrcode` únicamente al solicitar la cámara.
 - `manifest.webmanifest` y `sw.js` convierten la portada en una PWA básica. El worker solo cachea archivos estáticos públicos; nunca respuestas de Firestore ni enlaces de boletas.
 
+## Sistema de posiciones de granos (stamps)
+
+Las coordenadas de los granos de café se definen en un único objeto JavaScript `TICKET_STAMP_LAYOUTS` presente tanto en `public.js` como en `app.js`. Cada entrada contiene el centro del círculo como porcentaje del ancho y alto de la imagen:
+
+```js
+const TICKET_STAMP_LAYOUTS = {
+  regular: [
+    { x: 48, y: 55, size: 15 },  // Fila 1, círculo 1
+    { x: 61, y: 55, size: 15 },  // Fila 1, círculo 2
+    { x: 74, y: 55, size: 15 },  // Fila 1, círculo 3
+    { x: 48, y: 68, size: 15 },  // Fila 2, círculo 1
+    { x: 61, y: 68, size: 15 },  // Fila 2, círculo 2
+  ],
+  courtesy: [
+    { x: 60, y: 53, size: 11 },  // Círculo 1
+    { x: 72, y: 53, size: 11 },  // Círculo 2
+    { x: 83, y: 53, size: 11 },  // Círculo 3
+  ],
+};
+```
+
+### Cómo se calcularon
+
+Las posiciones se midieron inspeccionando las imágenes `Boleta 2.jpeg` (1080×1440, retrato) y `boleta 1.jpeg` (1536×1024, paisaje). Se identificaron los centros de los círculos impresos en cada imagen y se convirtieron a porcentajes del ancho/alto total.
+
+### Cómo ajustar un marcador en el futuro
+
+1. Activa el modo debug: `?debugStamps=1` (funciona tanto en la boleta pública como en el admin).
+2. Observa los bordes verdes y los números de índice sobre cada marcador.
+3. Ajusta los valores `x`, `y` y `size` en `TICKET_STAMP_LAYOUTS` en `public.js` y `app.js`.
+4. Los cambios se aplican sin recargar la página en la boleta pública (usa `onSnapshot`).
+
+### Estructura CSS
+
+Los marcadores usan propiedades CSS personalizadas inline:
+```html
+<span class="ticket-art-stamp active"
+  style="--stamp-x: 48%; --stamp-y: 55%; --stamp-size: 15%;"
+  aria-label="Visita 1 registrada"
+  data-stamp-index="0"></span>
+```
+
+```css
+.ticket-art-stamp {
+  position: absolute;
+  left: var(--stamp-x);
+  top: var(--stamp-y);
+  width: var(--stamp-size);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+}
+```
+
+## Modo calibración (`?debugStamps=1`)
+
+Agrega `?debugStamps=1` a la URL de la boleta pública o del admin para:
+
+- Ver borde rojo en `.ticket-art`.
+- Ver bordes verdes en cada marcador.
+- Ver el índice del marcador y sus coordenadas.
+- Identificar si algún marcador está desplazado.
+
+Este modo es únicamente visual y no modifica Firestore.
+
+## Actualización en tiempo real
+
+### Boleta pública
+
+La boleta pública usa `onSnapshot()` sobre el documento del ticket en Firestore. Se implementan funciones separadas:
+
+- `updateTicketStamps()` — activa/desactiva granos sin reconstruir el HTML.
+- `updateTicketVisitText()` — actualiza el texto de progreso.
+- `updateTicketBenefits()` — solo regenera QR de beneficios si la lista de tokens cambió.
+- `updatePublicTicketRealtime()` — orquesta las actualizaciones incrementales.
+
+Cuando solo cambia `visits`: no se reconstruye la boleta, no se reemplaza la imagen, no se regenera el QR de ingreso.
+
+### Modal administrativo
+
+Cuando el listener de `tickets` recibe nuevos datos, `refreshDisplayedTicketFromState()` verifica si hay una boleta abierta y actualiza:
+
+- Los granos (sin reconstruir el HTML).
+- El texto de visitas.
+- Anuncia el cambio a usuarios de lectores de pantalla mediante `aria-live`.
+
+### Evitar regeneración de QR
+
+Los QR solo se regeneran cuando cambia:
+- El token de la boleta.
+- La lista de beneficios (comparada por tokens).
+
+## Cómo probar con dos dispositivos
+
+1. Abre `/admin/` en el computador (ventana A).
+2. Abre `/?boleta=TOKEN` en el celular (ventana B).
+3. Registra un ingreso desde la ventana A.
+4. Verifica que el nuevo grano aparece en ambas ventanas sin recargar.
+5. Verifica que el QR no parpadea.
+6. Verifica que el modal administrativo permanece abierto.
+
 ## Configuración pública
 
 Edita `PUBLIC_CONFIG` en `public.js` para añadir solo canales públicos verificados:
@@ -22,22 +122,21 @@ const PUBLIC_CONFIG = {
 
 Los botones se ocultan mientras su valor esté vacío. No se incluyen números, direcciones ni cuentas inventadas.
 
-La imagen social está en `assets/social-live.svg`. El icono PWA y favicon están en `assets/icon.svg`. Puedes reemplazarlos por versiones PNG equivalentes si necesitas máxima compatibilidad con instaladores antiguos.
+La imagen social está en `assets/social-live.svg`. El icono PWA y favicon están en `assets/icon.svg`.
 
 ## Eventos públicos
 
-La portada lee la colección `events`, que ahora solo contiene información pública de programación. Los campos existentes siguen funcionando:
+La portada lee la colección `events`, que contiene información pública de programación:
 
 - `name` y `date` son obligatorios.
 - `description`, `time`, `location` e `imageUrl` son opcionales.
-- `status` puede ser `published`, `draft` o `cancelled`. Solo `published` puede leerse desde la portada; los documentos de eventos deben contener únicamente información pública de programación.
-- `createdAt` se conserva; `updatedAt` se agrega al editar.
-
-Los eventos pasados no aparecen en la agenda pública. No guardes información privada en documentos de `events`. Al iniciar la consola con una cuenta administradora, los eventos heredados sin `status` se migran una sola vez a `published` sin modificar su fecha ni descripción.
+- `status` puede ser `published`, `draft` o `cancelled`. Solo `published` puede leerse desde la portada.
+- Los eventos pasados no aparecen en la agenda pública.
+- Al iniciar la consola con una cuenta administradora, los eventos heredados sin `status` se migran a `published`.
 
 ## Edición de personas
 
-Desde la lista de comunidad, selecciona **Editar**. Se pueden actualizar nombre, correo, teléfono y nota. El tipo de boleta se mantiene para proteger el historial. Si cambia el nombre, también se actualiza el nombre visible en su boleta pública.
+Desde la lista de comunidad, selecciona **Editar**. Se pueden actualizar nombre, correo, teléfono y nota. El tipo de boleta se mantiene. Si cambia el nombre, también se actualiza el nombre visible en su boleta pública.
 
 ## Regenerar una boleta
 
@@ -46,29 +145,27 @@ Desde la lista de comunidad, selecciona **Editar**. Se pueden actualizar nombre,
 3. Confirma la acción.
 4. Copia o comparte el nuevo enlace.
 
-La regeneración crea un token nuevo, invalida la URL anterior, conserva las visitas y rota los QR de beneficios aún disponibles. Para mantener las transacciones seguras desde el navegador, se limita a 12 beneficios por persona; un historial excepcionalmente grande requiere una función de administración en servidor.
+La regeneración crea un token nuevo, invalida la URL anterior, conserva las visitas y rota los QR de beneficios aún disponibles. Se limita a 12 beneficios por persona desde el navegador.
 
 ## Beneficios
 
-La regla actual para una boleta regular es cinco asistencias por ciclo. El beneficio se genera para el siguiente evento disponible. El QR rojo registra el uso del beneficio para impedir un segundo acceso en ese evento, pero no incrementa el progreso de fidelización.
+La regla actual es cinco asistencias por ciclo para boleta regular. El beneficio se genera para el siguiente evento disponible. El QR rojo registra el uso del beneficio. Las cortesías tienen 3 ingresos sin beneficios.
 
 ## Lector QR
 
-El lector se carga al pulsar **Escanear QR**. Requiere HTTPS y permiso de cámara. Si la cámara está bloqueada o no existe, usa **Código o enlace de boleta** en el ingreso manual; admite el enlace personal, el token completo o el contenido JSON del QR.
+El lector se carga al pulsar **Escanear QR**. Requiere HTTPS y permiso de cámara. Si la cámara no está disponible, usa **Código o enlace de boleta** en el ingreso manual.
 
 La cámara se detiene al pulsar detener, ocultar la pestaña, abandonar la página o cerrar sesión.
 
 ## Firebase y privacidad
 
-- `people`, `checkins`, `benefits` y `tickets` administrativos requieren una cuenta cuyo UID exista en `admins/<uid>`.
-- Las boletas públicas se consultan solo por un token aleatorio de 43 caracteres; no se pueden listar públicamente.
-- El enlace de boleta es una credencial personal. Evita compartirlo.
-- Después de esta versión, los administradores deben borrar los datos del sitio en navegadores usados anteriormente si quieren retirar la caché privada de Firestore creada por versiones previas.
+- `people`, `checkins`, `benefits` y `tickets` requieren una cuenta cuyo UID exista en `admins/<uid>`.
+- Las boletas públicas se consultan solo por un token aleatorio de 43 caracteres.
 - Configura Firebase App Check, alertas de presupuesto y dominios autorizados antes de un evento grande.
 
 ## Despliegue
 
-GitHub Pages sirve la rama `main` desde la raíz. Todas las rutas usan enlaces relativos para funcionar bajo `https://jpcd-hub.github.io/live-vive-el-arte/`.
+GitHub Pages sirve la rama `main` desde la raíz. Todas las rutas usan enlaces relativos bajo `https://jpcd-hub.github.io/live-vive-el-arte/`.
 
 Publica las reglas con:
 
@@ -76,11 +173,15 @@ Publica las reglas con:
 firebase deploy --only firestore:rules --project ticket-service-c2eac
 ```
 
-Al cambiar recursos cacheados, incrementa `CACHE` y el listado `SHELL` en `sw.js`; también incrementa los parámetros de versión de `public.css`, `public.js`, `styles.css` o `app.js` cuando corresponda.
+Al cambiar recursos cacheados, incrementa `CACHE` y el listado `SHELL` en `sw.js`; incrementa los parámetros de versión de `public.css`, `public.js`, `styles.css` o `app.js` cuando corresponda.
 
-## Diagnóstico
+## Archivos modificados
 
-- Revisa los errores técnicos en la consola del navegador; la interfaz muestra mensajes comprensibles sin exponer detalles internos.
-- Verifica Firebase Console para errores de autenticación, Firestore y App Check.
-- Si una boleta no abre, confirma que el enlace tenga `?boleta=` seguido de 43 caracteres y que el token no haya sido regenerado.
-- Si la portada no muestra eventos, comprueba que los documentos tengan fecha `YYYY-MM-DD` y que las reglas de Firestore estén desplegadas.
+- `app.js` — Layout unificado, actualización en tiempo real del modal, modo debug, accesibilidad.
+- `public.js` — Layout unificado, actualización incremental sin reconstrucción completa, modo debug.
+- `public.css` — Sistema de propiedades CSS personalizadas, animación `stamp-in`, modo debug.
+- `styles.css` — Sistema de propiedades CSS personalizadas, corrección de `translate`, animación, modo debug.
+- `admin/index.html` — Región `aria-live`, versión actualizada.
+- `index.html` — Versión actualizada.
+- `sw.js` — Cache incrementado a v8.
+- `IMPLEMENTATION_NOTES.md` — Esta documentación.
