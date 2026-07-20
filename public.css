@@ -110,6 +110,8 @@ h3 { color: var(--green); font-size: 20px; line-height: 1.05; }
 .ticket-qr-card.reward { border-color: var(--red); color: var(--red); background: #fff8ea; }
 .ticket-qr { display: grid; width: 116px; height: 116px; place-items: center; background: #fff; }
 .ticket-qr canvas, .ticket-qr img, .ticket-qr table { display: block !important; width: 100% !important; height: 100% !important; }
+/* qrcodejs appends an image fallback after its canvas. Showing both stacks two QR codes. */
+.ticket-qr canvas + img { display: none !important; }
 .ticket-privacy { margin: 0; color: var(--muted); font-size: 12px; }
 .ticket-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
@@ -142,8 +144,8 @@ h3 { color: var(--green); font-size: 20px; line-height: 1.05; }
   .benefits-section, .ticket-access, .contact-section { grid-template-columns: 1fr; padding: 28px 22px; }
   .contact-actions { justify-content: start; }
   .digital-ticket-grid { grid-template-columns: 1fr; }
-  .digital-ticket-art { max-height: 290px; }
-  .digital-ticket-art img { object-position: top; }
+  .digital-ticket-art { display: grid; justify-items: center; max-height: none; }
+  .digital-ticket-art img { width: min(100%, 360px); height: auto; object-fit: contain; }
   .site-footer { grid-template-columns: 1fr; }
   .footer-links { justify-content: start; }
 }
