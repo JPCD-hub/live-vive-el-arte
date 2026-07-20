@@ -147,6 +147,13 @@ function loadLibrary(url, globalName) {
   promise.catch(() => libraryPromises.delete(url));
   return promise;
 }
+async function loadScannerLibrary() {
+  try {
+    return await loadLibrary('https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js', 'Html5Qrcode');
+  } catch (_) {
+    return loadLibrary('https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js', 'Html5Qrcode');
+  }
+}
 function ticketArtUrl(courtesy) { return new URL(courtesy ? 'boleta 1.jpeg' : 'Boleta 2.jpeg', import.meta.url).href; }
 function ticketTokenFromValue(value) {
   const text = value.trim();
@@ -194,7 +201,7 @@ function cameraErrorMessage(error) {
     NotReadableError: 'La cámara está siendo usada por otra aplicación. Ciérrala e intenta de nuevo.',
     OverconstrainedError: 'La cámara seleccionada no está disponible. Elige otra cámara e intenta de nuevo.',
   };
-  return messages[error?.name] || 'No se pudo abrir la cámara. Revisa el permiso y vuelve a intentarlo.';
+  return messages[error?.name] || `No se pudo abrir la cámara. ${error?.message || 'Revisa el permiso y vuelve a intentarlo.'}`;
 }
 
 function updateAccessUi(user = auth.currentUser) {
@@ -858,7 +865,7 @@ async function startScanner() {
     permissionStream.getTracks().forEach((track) => track.stop());
     if (!scannerStarting) return;
     setFeedback('Cargando lector QR...');
-    const Html5Qrcode = await loadLibrary('https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js', 'Html5Qrcode');
+    const Html5Qrcode = await loadScannerLibrary();
     if (!scannerStarting) return;
     const cameras = await Html5Qrcode.getCameras();
     if (!scannerStarting) return;
