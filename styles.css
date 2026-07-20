@@ -934,7 +934,8 @@ textarea:focus-visible {
 
 .ticket-qr-item .qr {
   display: grid;
-  width: min(116px, 100%);
+  width: 116px;
+  height: 116px;
   min-height: 0;
   padding: 0;
   place-items: center;
@@ -948,7 +949,7 @@ textarea:focus-visible {
 }
 
 .reward-qr span { color: var(--red); }
-.reward-qr .qr { width: 106px; min-height: 106px; }
+.reward-qr .qr { width: 106px; height: 106px; min-height: 0; }
 
 /* ========== REGULAR TICKET (2-column) ========== */
 .ticket-regular {
@@ -1004,9 +1005,9 @@ textarea:focus-visible {
   background: #fff;
 }
 
-.ticket-regular .ticket-qr-item .qr { width: 94px; min-height: 94px; }
+.ticket-regular .ticket-qr-item .qr { width: 94px; height: 94px; min-height: 0; }
 .ticket-regular .reward-qr { border: 2px solid var(--red); background: #fff8ea; }
-.ticket-regular .reward-qr .qr { width: 94px; min-height: 94px; }
+.ticket-regular .reward-qr .qr { width: 94px; height: 94px; min-height: 0; }
 
 /* ========== COURTESY TICKET ========== */
 .ticket-courtesy .ticket-art { width: min(100%, 720px); margin: 0 auto; }
@@ -1160,9 +1161,9 @@ textarea:focus-visible {
   }
 
   .ticket-regular .ticket-qr-item span { font-size: 9px; }
-  .ticket-regular .ticket-qr-item .qr { width: min(116px, 100%); min-height: 0; aspect-ratio: 1; }
+  .ticket-regular .ticket-qr-item .qr { width: clamp(70px, 28vw, 116px); height: clamp(70px, 28vw, 116px); min-height: 0; aspect-ratio: 1; }
   .ticket-regular .reward-qr { border: 2px solid var(--red); background: #fff8ea; }
-  .ticket-regular .reward-qr .qr { width: min(116px, 100%); min-height: 0; aspect-ratio: 1; }
+  .ticket-regular .reward-qr .qr { width: clamp(70px, 28vw, 116px); height: clamp(70px, 28vw, 116px); min-height: 0; aspect-ratio: 1; }
 
   /* Courtesy ticket mobile: the horizontal template must use the viewport width,
      not vh, otherwise it becomes too small when Android is in landscape. */
@@ -1172,7 +1173,7 @@ textarea:focus-visible {
   .ticket-courtesy .ticket-personal { max-width: 720px; margin: 0 auto; }
   .ticket-courtesy .ticket-codes { display: grid; grid-template-columns: minmax(130px, 160px); justify-content: center; }
   .ticket-courtesy .ticket-qr-item { justify-items: center; padding: 10px; border: 1px solid #d8cdb9; background: #fff; }
-  .ticket-courtesy .ticket-qr-item .qr { width: min(116px, 100%); min-height: 116px; }
+  .ticket-courtesy .ticket-qr-item .qr { width: clamp(70px, 28vw, 116px); height: clamp(70px, 28vw, 116px); min-height: 0; }
 
   .ticket-personal {
     grid-template-columns: 1fr;
@@ -1184,7 +1185,7 @@ textarea:focus-visible {
   .ticket-visits { overflow-wrap: anywhere; font-size: 12px; }
   .qr { min-height: 80px; width: 100%; aspect-ratio: 1; max-width: 140px; justify-self: center; }
   .ticket-codes { justify-content: center; gap: 10px; }
-  .ticket-qr-item .qr, .reward-qr .qr { width: 100px; min-height: 100px; }
+  .ticket-qr-item .qr, .reward-qr .qr { width: clamp(70px, 28vw, 100px); height: clamp(70px, 28vw, 100px); min-height: 0; }
 
   footer { padding: 24px 16px; }
 }
@@ -1215,7 +1216,7 @@ textarea:focus-visible {
 
   .ticket-personal { padding: 12px 14px; }
   .qr { min-height: 70px; }
-  .ticket-qr-item .qr, .reward-qr .qr { width: 70px; min-height: 70px; }
+  .ticket-qr-item .qr, .reward-qr .qr { width: 70px; height: 70px; min-height: 0; }
 }
 
 /* ==========================================
