@@ -326,12 +326,14 @@ function renderTicket(container, ticket) {
   const upgradeNote = courtesy && visits >= 3 ? '<p class="ticket-upgrade-note">¿Quieres seguir asistiendo? Solicita al equipo Live! tu nueva boleta regular.</p>' : '';
   container.innerHTML = `<article class="ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}"><div class="ticket-art"><img src="${ticketArtUrl(courtesy)}" alt="Boleta ${ticketLabel(ticket)} Vive el Arte" />${statusStamps}</div><section class="ticket-personal"><div><p class="ticket-label">BOLETA VIRTUAL · ${ticketLabel(ticket).toUpperCase()}</p><p class="ticket-person">${escapeHtml(ticket.name)}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${ticket.id.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${description}</p>${upgradeNote}</div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div id="ticket-qr-${renderId}" class="qr" aria-label="Código QR de ${escapeHtml(ticket.name)}"></div></div>${benefitMarkup}</div></section></article>`;
   loadLibrary('https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js', 'QRCode').then((QRCode) => {
-    const entryQr = $(`#ticket-qr-${renderId}`);
-    if (!entryQr) return;
-    new QRCode(entryQr, { text: JSON.stringify({ app: APP_NAME, ticketToken: ticket.id }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
-    benefits.forEach((benefit, index) => {
-      const benefitQr = $(`#benefit-qr-${renderId}-${index}`);
-      if (benefitQr) new QRCode(benefitQr, { text: JSON.stringify({ app: APP_NAME, type: 'benefit', benefitToken: benefit.token }), width: 116, height: 116, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    requestAnimationFrame(() => {
+      const renderQr = (element, data) => {
+        if (!element) return;
+        const size = Math.max(70, Math.round(element.getBoundingClientRect().width));
+        new QRCode(element, { text: JSON.stringify(data), width: size, height: size, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      };
+      renderQr($(`#ticket-qr-${renderId}`), { app: APP_NAME, ticketToken: ticket.id });
+      benefits.forEach((benefit, index) => renderQr($(`#benefit-qr-${renderId}-${index}`), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }));
     });
   }).catch((error) => {
     console.error(error);
