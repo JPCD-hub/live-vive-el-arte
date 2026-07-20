@@ -785,8 +785,8 @@ textarea:focus-visible {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 65%;
-  height: 65%;
+  width: 70%;
+  height: 70%;
   border-radius: 50%;
   background: #f4eddf;
   content: "";
@@ -1113,7 +1113,7 @@ textarea:focus-visible {
 
   /* Regular ticket mobile: image + info stacked vertically */
   .ticket-regular { display: flex; flex-direction: column; }
-  .ticket-regular .ticket-art { width: min(100%, 48vh); margin: 0 auto; flex-shrink: 0; }
+  .ticket-regular .ticket-art { width: 100%; margin: 0 auto; flex-shrink: 0; }
 
   .ticket-regular .ticket-personal {
     grid-template-columns: 1fr;
@@ -1224,6 +1224,6 @@ textarea:focus-visible {
 
 .debug-stamps .ticket-art { outline: 2px dashed red; }
 .debug-stamps .reference-stamp { outline: 1px solid lime; background: rgba(0, 255, 0, .15); }
-.debug-stamps .reference-stamp::before { outline: 1px solid cyan; }
+.debug-stamps .reference-stamp::before { outline: 1px solid cyan; width: 70%; height: 70%; }
 .debug-stamps .reference-stamp::after { position: absolute; top: 50%; left: 50%; width: auto; height: auto; border-radius: 0; background: rgba(255,255,255,.85); transform: translate(-50%, -50%); font-size: 10px; color: red; padding: 1px 3px; content: attr(data-stamp-index); }
 .debug-stamps .reference-stamp.active::after { content: "" !important; width: 32%; height: 48%; border-radius: 50%; background: linear-gradient(132deg, transparent 42%, #f4eddf 44%, #f4eddf 53%, transparent 55%), #4a2708; }

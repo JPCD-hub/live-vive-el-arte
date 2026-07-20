@@ -105,7 +105,7 @@ h3 { color: var(--green); font-size: 20px; line-height: 1.05; }
 .progress-track { height: 9px; overflow: hidden; background: #d8cdb9; }
 .progress-value { display: block; height: 100%; background: var(--green); }
 .ticket-art-stamp { position: absolute; z-index: 1; display: grid; width: var(--stamp-size, 15%); aspect-ratio: 1; left: var(--stamp-x); top: var(--stamp-y); place-items: center; border: 2px solid transparent; border-radius: 50%; background: transparent; transform: translate(-50%, -50%); }
-.ticket-art-stamp::before { position: absolute; top: 50%; left: 50%; width: 65%; height: 65%; border-radius: 50%; background: #f4eddf; content: ""; transform: translate(-50%, -50%); }
+.ticket-art-stamp::before { position: absolute; top: 50%; left: 50%; width: 70%; height: 70%; border-radius: 50%; background: #f4eddf; content: ""; transform: translate(-50%, -50%); }
 .ticket-art-stamp.active::after { position: absolute; top: 50%; left: 50%; width: 32%; height: 48%; border-radius: 50%; background: linear-gradient(132deg, transparent 42%, #f4eddf 44%, #f4eddf 53%, transparent 55%), #4a2708; content: ""; transform: translate(-50%, -50%) rotate(28deg); }
 .ticket-courtesy .ticket-art-stamp { width: var(--stamp-size, 11%); }
 .ticket-art-stamp.animate-in { animation: stamp-in .4s ease-out; }
