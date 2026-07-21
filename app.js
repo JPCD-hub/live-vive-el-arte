@@ -54,6 +54,12 @@ let scannerDecoding = false;
 let offlineCacheAvailable = false;
 let displayedPersonId = null;
 const libraryPromises = new Map();
+const eventUi = { search: '', filter: 'all', sort: 'upcoming' };
+let eventSearchTimer;
+let eventsLoaded = false;
+let eventLoadError = '';
+let activeEventMenuId = null;
+let displayedEventDetailsId = null;
 
 function localDate() {
   const now = new Date();
@@ -225,6 +231,9 @@ function stopOperationalListeners() {
   state.checkins = [];
   state.benefits = [];
   state.tickets = new Map();
+  eventsLoaded = false;
+  eventLoadError = '';
+  activeEventMenuId = null;
   updateConnectionStatus();
 }
 
@@ -232,11 +241,20 @@ function listenToOperationalData() {
   const listen = (name, apply) => onSnapshot(collection(db, name), { includeMetadataChanges: true }, (snapshot) => {
     operationalSources.set(name, !snapshot.metadata.fromCache);
     apply(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+    if (name === 'events') {
+      eventsLoaded = true;
+      eventLoadError = '';
+    }
     render();
     updateConnectionStatus();
   }, (error) => {
     operationalSources.set(name, false);
     console.error(`No se pudo leer ${name}`, error);
+    if (name === 'events') {
+      eventsLoaded = true;
+      eventLoadError = 'No se pudieron cargar los eventos. Revisa tu conexión e inténtalo nuevamente.';
+      renderEvents();
+    }
     setFeedback('No se pudieron actualizar los datos operativos.', true);
     updateConnectionStatus();
   });
@@ -311,11 +329,79 @@ function renderPeople() {
   }).join('');
 }
 function renderEvents() {
-  $('#event-list').innerHTML = sortedEvents().reverse().map((event) => {
-    const attendances = state.checkins.filter((item) => item.eventId === event.id).length;
-    const status = event.status === 'draft' ? 'Borrador' : event.status === 'cancelled' ? 'Cancelado' : 'Publicado';
-    return `<article class="event-card"><button class="small-button delete event-delete" data-delete-event="${event.id}">Eliminar</button><button class="small-button event-edit" data-edit-event="${event.id}">Editar</button><span class="event-date">${formatDate(event.date)}${event.time ? ` · ${escapeHtml(event.time)}` : ''}</span><h3>${escapeHtml(event.name)}</h3><p>${escapeHtml(event.description || 'Sin descripción.')}</p><span class="event-status">${status}</span><span class="event-attendance">${attendances} ingresos</span></article>`;
-  }).join('');
+  const list = $('#event-list');
+  const empty = $('#events-empty');
+  const error = $('#event-error');
+  const results = $('#event-results');
+  const clearFilters = $('#event-clear-filters');
+  if (!list || !empty || !error || !results || !clearFilters) return;
+  if (!eventsLoaded) {
+    list.setAttribute('aria-busy', 'true');
+    list.innerHTML = '<div class="event-card event-card--skeleton" aria-hidden="true"><span></span><span></span><span></span></div><div class="event-card event-card--skeleton" aria-hidden="true"><span></span><span></span><span></span></div><div class="event-card event-card--skeleton" aria-hidden="true"><span></span><span></span><span></span></div>';
+    empty.hidden = true;
+    results.textContent = 'Cargando eventos...';
+    return;
+  }
+
+  const hasFilters = Boolean(eventUi.search) || eventUi.filter !== 'all' || eventUi.sort !== 'upcoming';
+  clearFilters.hidden = !hasFilters;
+  error.hidden = !eventLoadError;
+  error.textContent = eventLoadError;
+  list.setAttribute('aria-busy', 'false');
+  activeEventMenuId = null;
+
+  const events = state.events
+    .filter((event) => event.name.toLocaleLowerCase('es-CO').includes(eventUi.search))
+    .filter((event) => eventUi.filter === 'all' || eventPresentation(event).key === eventUi.filter)
+    .sort((a, b) => compareEvents(a, b, eventUi.sort));
+
+  if (!events.length) {
+    list.replaceChildren();
+    empty.hidden = false;
+    empty.querySelector('b').textContent = state.events.length ? 'No hay eventos que coincidan.' : 'Aún no hay eventos creados.';
+    empty.querySelector('span').textContent = state.events.length ? 'Prueba con otra búsqueda o limpia los filtros.' : 'Crea el primer evento para comenzar la programación.';
+    results.textContent = state.events.length ? '0 eventos coinciden con los filtros.' : '0 eventos registrados.';
+    return;
+  }
+
+  empty.hidden = true;
+  results.textContent = `${events.length} ${events.length === 1 ? 'evento visible' : 'eventos visibles'}.`;
+  list.innerHTML = events.map((event) => eventCardMarkup(event)).join('');
+}
+
+function eventPresentation(event) {
+  if (event.status === 'draft') return { key: 'draft', label: 'Borrador', past: false };
+  const past = event.status === 'cancelled' || event.date < localDate();
+  return past ? { key: 'finished', label: 'Finalizado', past: true } : { key: 'published', label: 'Publicado', past: false };
+}
+
+function compactEventDate(value) {
+  return new Intl.DateTimeFormat('es-CO', { day: '2-digit', month: 'short', year: 'numeric' })
+    .format(new Date(`${value}T12:00:00`)).replace(/\./g, '').toLocaleUpperCase('es-CO');
+}
+
+function eventAttendance(eventId) {
+  return state.checkins.filter((item) => item.eventId === eventId).length;
+}
+
+function compareEvents(a, b, sort) {
+  const attendanceDifference = eventAttendance(b.id) - eventAttendance(a.id);
+  if (sort === 'income') return attendanceDifference || a.name.localeCompare(b.name, 'es-CO');
+  if (sort === 'alpha') return a.name.localeCompare(b.name, 'es-CO');
+  if (sort === 'oldest') return a.date.localeCompare(b.date);
+  if (sort === 'recent') return b.date.localeCompare(a.date);
+  const today = localDate();
+  const rank = (event) => event.date >= today && event.status === 'published' ? 0 : 1;
+  return rank(a) - rank(b) || a.date.localeCompare(b.date) || a.name.localeCompare(b.name, 'es-CO');
+}
+
+function eventCardMarkup(event) {
+  const presentation = eventPresentation(event);
+  const attendances = eventAttendance(event.id);
+  const incomeLabel = `${attendances} ${attendances === 1 ? 'ingreso' : 'ingresos'}`;
+  const menuId = `event-menu-${event.id}`;
+  const timeLabel = `${formatDate(event.date)}${event.time ? ` a las ${event.time}` : ''}`;
+  return `<article class="event-card${presentation.past ? ' event-card--past' : ''}" data-event-id="${event.id}"><header class="event-card__header"><time class="event-card__date" datetime="${event.date}" aria-label="${escapeHtml(timeLabel)}">${compactEventDate(event.date)}</time><div class="event-card__menu"><button class="event-menu-button" type="button" data-event-menu-button aria-label="Acciones del evento" aria-expanded="false" aria-controls="${menuId}">⋮</button><div id="${menuId}" class="event-menu" role="menu" hidden><button type="button" role="menuitem" data-edit-event="${event.id}">Editar</button><button type="button" role="menuitem" data-event-details="${event.id}">Ver detalles</button><button type="button" role="menuitem" data-manage-event="${event.id}">Gestionar ingresos</button><button type="button" role="menuitem" class="event-menu__delete" data-delete-event="${event.id}">Eliminar</button></div></div></header><div class="event-card__body"><h3 class="event-card__title">${escapeHtml(event.name)}</h3><p class="event-card__description">${escapeHtml(event.description || 'Sin descripción disponible.')}</p></div><footer class="event-card__footer"><span class="event-status" data-status="${presentation.key}">Estado: ${presentation.label}</span><span class="event-income"><span aria-hidden="true">↗</span>${incomeLabel}</span></footer></article>`;
 }
 function renderSelects() {
   const events = availableEvents().slice().sort((a, b) => a.date.localeCompare(b.date));
@@ -842,6 +928,76 @@ async function submitForm(form, operation) {
   }
 }
 
+function closeEventMenu({ restoreFocus = false } = {}) {
+  if (!activeEventMenuId) return;
+  const menu = document.getElementById(activeEventMenuId);
+  const button = document.querySelector(`[aria-controls="${activeEventMenuId}"]`);
+  if (menu) {
+    menu.hidden = true;
+    menu.classList.remove('event-menu--up');
+  }
+  if (button) {
+    button.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) button.focus();
+  }
+  activeEventMenuId = null;
+}
+
+function toggleEventMenu(button) {
+  const menuId = button.getAttribute('aria-controls');
+  if (!menuId) return;
+  if (activeEventMenuId === menuId) return closeEventMenu({ restoreFocus: true });
+  closeEventMenu();
+  const menu = document.getElementById(menuId);
+  if (!menu) return;
+  activeEventMenuId = menuId;
+  menu.hidden = false;
+  button.setAttribute('aria-expanded', 'true');
+  requestAnimationFrame(() => {
+    const menuRect = menu.getBoundingClientRect();
+    const buttonRect = button.getBoundingClientRect();
+    menu.classList.toggle('event-menu--up', menuRect.bottom > window.innerHeight - 8 && buttonRect.top > menu.offsetHeight + 8);
+  });
+}
+
+function showEventDetails(eventId) {
+  const event = state.events.find((item) => item.id === eventId);
+  if (!event) return;
+  const presentation = eventPresentation(event);
+  const attendances = eventAttendance(event.id);
+  const content = $('#event-details-content');
+  const incomeLabel = `${attendances} ${attendances === 1 ? 'ingreso' : 'ingresos'}`;
+  content.innerHTML = `<div><dt>Fecha</dt><dd><time datetime="${event.date}">${escapeHtml(formatDate(event.date))}${event.time ? ` · ${escapeHtml(event.time)}` : ''}</time></dd></div><div><dt>Estado</dt><dd>${presentation.label}</dd></div><div><dt>Ingresos</dt><dd>${incomeLabel}</dd></div><div><dt>Lugar</dt><dd>${escapeHtml(event.location || 'Sin lugar definido')}</dd></div><div><dt>Descripción</dt><dd>${escapeHtml(event.description || 'Sin descripción disponible.')}</dd></div>`;
+  displayedEventDetailsId = event.id;
+  $('#event-details').showModal();
+}
+
+function manageEventAttendances(eventId) {
+  const event = state.events.find((item) => item.id === eventId);
+  const select = $('#active-event');
+  if (!event || !select) return;
+  if ([...select.options].some((option) => option.value === eventId)) {
+    select.value = eventId;
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    setFeedback(`Evento activo: ${event.name}.`);
+  } else {
+    setFeedback(`No se pueden gestionar ingresos para ${event.name} porque no está publicado.`, true);
+  }
+  $('#event-details').close();
+  document.querySelector('#ingresos')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  requestAnimationFrame(() => select.focus());
+}
+
+function clearEventFilters() {
+  eventUi.search = '';
+  eventUi.filter = 'all';
+  eventUi.sort = 'upcoming';
+  $('#event-search').value = '';
+  $('#event-filter').value = 'all';
+  $('#event-sort').value = 'upcoming';
+  renderEvents();
+}
+
 document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', () => {
   if (!isAdmin) return;
   if (button.dataset.open === 'event-form') openEventForm();
@@ -862,10 +1018,72 @@ $('#people-list').addEventListener('click', (event) => {
   if (deleteButton) deletePerson(deleteButton.dataset.deletePerson);
 });
 $('#event-list').addEventListener('click', (event) => {
+  const menuButton = event.target.closest('[data-event-menu-button]');
   const button = event.target.closest('[data-delete-event]');
   const editButton = event.target.closest('[data-edit-event]');
-  if (button) deleteEvent(button.dataset.deleteEvent);
-  if (editButton) openEventForm(editButton.dataset.editEvent);
+  const detailsButton = event.target.closest('[data-event-details]');
+  const manageButton = event.target.closest('[data-manage-event]');
+  if (menuButton) return toggleEventMenu(menuButton);
+  if (button) {
+    closeEventMenu();
+    deleteEvent(button.dataset.deleteEvent);
+  }
+  if (editButton) {
+    closeEventMenu();
+    openEventForm(editButton.dataset.editEvent);
+  }
+  if (detailsButton) {
+    closeEventMenu();
+    showEventDetails(detailsButton.dataset.eventDetails);
+  }
+  if (manageButton) {
+    closeEventMenu();
+    manageEventAttendances(manageButton.dataset.manageEvent);
+  }
+});
+$('#event-search').addEventListener('input', (event) => {
+  clearTimeout(eventSearchTimer);
+  eventSearchTimer = setTimeout(() => {
+    eventUi.search = event.target.value.trim().toLocaleLowerCase('es-CO');
+    renderEvents();
+  }, 180);
+});
+$('#event-filter').addEventListener('change', (event) => {
+  eventUi.filter = event.target.value;
+  renderEvents();
+});
+$('#event-sort').addEventListener('change', (event) => {
+  eventUi.sort = event.target.value;
+  renderEvents();
+});
+$('#event-clear-filters').addEventListener('click', clearEventFilters);
+$('#close-event-details').addEventListener('click', () => $('#event-details').close());
+$('#event-details-edit').addEventListener('click', () => {
+  const eventId = displayedEventDetailsId;
+  $('#event-details').close();
+  if (eventId) openEventForm(eventId);
+});
+$('#event-details-manage').addEventListener('click', () => {
+  const eventId = displayedEventDetailsId;
+  if (eventId) manageEventAttendances(eventId);
+});
+document.addEventListener('pointerdown', (event) => {
+  if (activeEventMenuId && !event.target.closest('.event-card__menu')) closeEventMenu();
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && activeEventMenuId) {
+    event.preventDefault();
+    closeEventMenu({ restoreFocus: true });
+    return;
+  }
+  const menu = event.target.closest('.event-menu');
+  if (!menu || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+  const items = [...menu.querySelectorAll('[role="menuitem"]')];
+  const currentIndex = items.indexOf(event.target);
+  if (currentIndex < 0) return;
+  event.preventDefault();
+  const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (currentIndex + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+  items[nextIndex].focus();
 });
 $('#new-person-form').addEventListener('submit', async (event) => {
   event.preventDefault();
