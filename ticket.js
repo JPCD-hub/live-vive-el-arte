@@ -23,8 +23,12 @@ export function ticketState(ticket) {
   const visits = Number(ticket.visits) || 0;
   const courtesy = ticket.ticketType === 'courtesy';
   const required = courtesy ? 3 : 5;
-  const progress = courtesy ? Math.min(visits, required) : visits ? ((visits - 1) % required) + 1 : 0;
-  return { visits, courtesy, required, progress };
+  if (courtesy) return { visits, courtesy, required, progress: Math.min(visits, required), completedCycles: 0, redeemedCycles: 0 };
+  const completedCycles = Math.floor(visits / required);
+  const redeemedCycles = Math.min(Math.max(0, Number(ticket.redeemedCycles) || 0), completedCycles);
+  const cycleProgress = visits % required;
+  const progress = cycleProgress === 0 && completedCycles > redeemedCycles ? required : cycleProgress;
+  return { visits, courtesy, required, progress, completedCycles, redeemedCycles };
 }
 
 export function ticketBenefitTokens(ticket) {
@@ -32,11 +36,16 @@ export function ticketBenefitTokens(ticket) {
 }
 
 export function ticketVisitText(ticket) {
-  const { visits, courtesy, required, progress } = ticketState(ticket);
+  const { visits, courtesy, required, progress, completedCycles, redeemedCycles } = ticketState(ticket);
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
   if (courtesy) return visits >= required ? 'Las 3 cortesías ya fueron utilizadas. Esta boleta no admite más ingresos.' : `Entrada de cortesía: ${progress} de ${required} miércoles utilizados.`;
-  if (visits && visits % required === 0) return benefits.length ? `Completaste ${visits} asistencias. Ya tienes un beneficio disponible.` : `Completaste ${visits} asistencias. Tu beneficio se asignará para el próximo evento disponible.`;
-  return `${progress} de ${required} asistencias en el ciclo actual · ${visits} en total.`;
+  if (progress === required) return benefits.length ? `Completaste el ciclo ${completedCycles}. Ya tienes un beneficio disponible.` : `Completaste el ciclo ${completedCycles}. Tu beneficio se asignará para el próximo evento disponible.`;
+  return `${progress} de ${required} asistencias en el ciclo actual · ${visits} en total · ${redeemedCycles} ciclos canjeados.`;
+}
+
+export function ticketCycleText(ticket) {
+  const { courtesy, completedCycles, redeemedCycles } = ticketState(ticket);
+  return courtesy ? '' : `Ciclos completados: ${completedCycles} · canjeados: ${redeemedCycles}`;
 }
 
 export function ticketStampMarkup(ticket) {
@@ -62,7 +71,7 @@ export function renderTicketMarkup(ticket, options = {}) {
   const name = escapeTicketHtml(ticket.name || 'Boleta Live!');
   const token = escapeTicketHtml(ticket.id);
   const upgrade = courtesy && visits >= required;
-  return `<article class="ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}" data-ticket-token="${token}" data-benefit-tokens="${ticketBenefitTokens(ticket)}"><div class="ticket-art" data-ticket-layout="${courtesy ? 'courtesy' : 'regular'}"><img src="${assetPrefix}${imageName}" width="${naturalWidth}" height="${naturalHeight}" alt="Boleta ${courtesy ? 'de cortesía' : 'regular'} Vive el Arte" />${ticketStampMarkup(ticket)}<p class="ticket-debug-meta" aria-hidden="true"></p></div><section class="ticket-personal"><div class="ticket-details"><p class="ticket-label">${label} · ${typeLabel}</p><p class="ticket-person">${name}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${token.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${ticketVisitText(ticket)}</p><div class="ticket-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${required}" aria-valuenow="${progress}"><span class="ticket-progress-fill" style="width:${(progress / required) * 100}%"></span></div><p class="ticket-progress-label">${progress} de ${required}</p><p class="ticket-upgrade-note"${upgrade ? '' : ' hidden'}>¿Quieres seguir asistiendo? Solicita al equipo Live! tu nueva boleta regular.</p></div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div class="qr-container"><div class="qr" data-entry-qr aria-label="Código QR de ${name}"></div></div></div>${benefits.map(ticketBenefitMarkup).join('')}</div></section></article>`;
+  return `<article class="ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}" data-ticket-token="${token}" data-benefit-tokens="${ticketBenefitTokens(ticket)}"><div class="ticket-art" data-ticket-layout="${courtesy ? 'courtesy' : 'regular'}"><img src="${assetPrefix}${imageName}" width="${naturalWidth}" height="${naturalHeight}" alt="Boleta ${courtesy ? 'de cortesía' : 'regular'} Vive el Arte" />${ticketStampMarkup(ticket)}<p class="ticket-debug-meta" aria-hidden="true"></p></div><section class="ticket-personal"><div class="ticket-details"><p class="ticket-label">${label} · ${typeLabel}</p><p class="ticket-person">${name}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${token.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${ticketVisitText(ticket)}</p><div class="ticket-progress" role="progressbar" aria-valuemin="0" aria-valuemax="${required}" aria-valuenow="${progress}"><span class="ticket-progress-fill" style="width:${(progress / required) * 100}%"></span></div><p class="ticket-progress-label">${progress} de ${required}</p><p class="ticket-cycle-count"${courtesy ? ' hidden' : ''}>${ticketCycleText(ticket)}</p><p class="ticket-upgrade-note"${upgrade ? '' : ' hidden'}>¿Quieres seguir asistiendo? Solicita al equipo Live! tu nueva boleta regular.</p></div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div class="qr-container"><div class="qr" data-entry-qr aria-label="Código QR de ${name}"></div></div></div>${benefits.map(ticketBenefitMarkup).join('')}</div></section></article>`;
 }
 
 export function updateTicketRealtimeState(container, ticket) {
@@ -87,6 +96,8 @@ export function updateTicketRealtimeState(container, ticket) {
   if (progressFill) progressFill.style.width = `${(progress / required) * 100}%`;
   const progressLabel = article.querySelector('.ticket-progress-label');
   if (progressLabel) progressLabel.textContent = `${progress} de ${required}`;
+  const cycleCount = article.querySelector('.ticket-cycle-count');
+  if (cycleCount) cycleCount.textContent = ticketCycleText(ticket);
   const upgradeNote = article.querySelector('.ticket-upgrade-note');
   if (upgradeNote) upgradeNote.hidden = !(courtesy && visits >= required);
   const nextTokens = ticketBenefitTokens(ticket);

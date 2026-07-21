@@ -21,7 +21,7 @@ import {
   where,
   writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { renderTicketMarkup, ticketBenefitMarkup, updateTicketDebug, updateTicketRealtimeState } from './ticket.js?v=7';
+import { renderTicketMarkup, ticketBenefitMarkup, updateTicketDebug, updateTicketRealtimeState } from './ticket.js?v=8';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBK9l6lVxoAfgiLmLmK2qJCIVwFc0xNfqI',
@@ -566,7 +566,9 @@ async function redeemBenefit(benefitToken, event = currentEvent()) {
       const benefits = (Array.isArray(ticket.benefits) ? ticket.benefits : []).filter((item) => item.token !== benefit.token);
       transaction.set(checkinRef(event.id, person.id), { personId: person.id, eventId: event.id, type: 'benefit', benefitToken: benefit.token, checkedAt: serverTimestamp() });
       transaction.update(doc(db, 'benefits', benefit.id), { eventId: event.id, eventName: currentEventData.name, pending: false, usedAt: serverTimestamp() });
-      transaction.update(doc(db, 'tickets', person.ticketToken), { benefits });
+      const completedCycles = Math.floor((Number(ticket.visits) || 0) / BENEFIT_VISITS);
+      const redeemedCycles = Math.min(completedCycles, (Number(ticket.redeemedCycles) || 0) + 1);
+      transaction.update(doc(db, 'tickets', person.ticketToken), { benefits, redeemedCycles });
     });
     setFeedback(`Beneficio canjeado para ${person.name}. No se registra asistencia adicional.`);
   } catch (error) { reportOperationError(error); }

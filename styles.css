@@ -892,6 +892,13 @@ textarea:focus-visible {
   letter-spacing: .8px;
 }
 
+.ticket-cycle-count {
+  margin: 4px 0 0;
+  color: #667068;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
 .qr-container { flex: 0 0 auto; }
 
 .qr {
