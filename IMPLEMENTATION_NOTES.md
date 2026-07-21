@@ -27,16 +27,16 @@ No existen `.github/workflows`, `docs/`, `dist/`, `build/`, rama `gh-pages` ni o
 
 La página pública carga:
 
-- `styles.css?v=8`
-- `public.css?v=8`
-- `public.js?v=8`
-- `ticket.js?v=8` como import ES module de `public.js`
+- `styles.css?v=9`
+- `public.css?v=9`
+- `public.js?v=9`
+- `ticket.js?v=9` como import ES module de `public.js`
 
 La administración carga:
 
-- `../styles.css?v=8`
-- `../app.js?v=8`
-- `../ticket.js?v=8` como import ES module de `app.js`
+- `../styles.css?v=9`
+- `../app.js?v=9`
+- `../ticket.js?v=9` como import ES module de `app.js`
 
 `styles.css` es la única fuente de estilos internos de la boleta. `public.css` contiene exclusivamente la portada, encabezado, contenedor exterior de enlace público, espaciado y footer.
 
@@ -49,7 +49,7 @@ Las dimensiones se midieron programáticamente mediante `System.Drawing.Image.Fr
 | `Boleta 2.jpeg` | 1086×1448 | 3:4 | Vertical, regular |
 | `boleta 1.jpeg` | 1536×1024 | 3:2 | Horizontal, cortesía |
 
-Las imágenes conservan su proporción con `width: 100%`, `max-width: 100%`, `height: auto` y `object-fit: contain`. No se usa `cover`, alturas fijas, `vh` para su ancho ni recortes en el componente de boleta.
+Las imágenes conservan su proporción con `width: 100%`, `max-width: 100%`, `height: auto` y `object-fit: contain`. No se usa `cover`, alturas fijas, `vh` para su ancho ni recortes en el componente de boleta. El repositorio no contiene versiones limpias de estas ilustraciones: solo los dos JPEG con granos impresos. Por eso la máscara crema calibrada sigue siendo necesaria; una versión limpia autorizada sería la mejora recomendada para eliminar por completo cualquier diferencia de textura.
 
 ## Coordenadas y máscaras finales
 
@@ -113,7 +113,7 @@ La máscara `::before` y el grano activo `::after` usan el mismo centro (`left: 
 - Conserva imagen, QR de ingreso, scroll y modal cuando solo cambian visitas.
 - Indica al llamador si cambió la lista de beneficios; solo entonces se reemplazan los QR de beneficio.
 
-El QR usa `.qr-container { flex: 0 0 auto }` y `.qr { width: clamp(112px, 14vw, 150px); aspect-ratio: 1 }`. Tras generar un QR se elimina el `img` fallback añadido después de `canvas`, evitando dos representaciones visibles.
+El QR usa `.qr-container { flex: 0 0 auto }` y `.qr { width: clamp(112px, 14vw, 150px); min-height: 0; aspect-ratio: 1; padding: 7px }`. Tras generar un QR se elimina el `img` fallback añadido después de `canvas`, evitando dos representaciones visibles.
 
 El texto solo indica que hay un beneficio disponible cuando `ticket.benefits` contiene una tarjeta activa. Si se completan cinco visitas sin un beneficio asignado todavía, informa que se asignará al próximo evento disponible; así no se muestra un beneficio inexistente.
 
@@ -134,10 +134,10 @@ No modifica Firestore ni datos de boleta.
 
 ## Caché y producción
 
-- `sw.js` cache actual: `live-vive-el-arte-public-v13`.
+- `sw.js` cache actual: `live-vive-el-arte-public-v14`.
 - Al activarse elimina cualquier caché anterior con el mismo prefijo y ejecuta `clients.claim()`.
 - Navegaciones: network-first con fallback a `index.html`.
-- CSS y JavaScript: stale-while-revalidate; las URLs `v=8` evitan coincidencias con recursos previos.
+- CSS y JavaScript: stale-while-revalidate; las URLs `v=9` evitan coincidencias con recursos previos.
 - Las navegaciones con `?boleta=` no se cachean; Firestore, Firebase Auth, datos personales y rutas administrativas no se almacenan en el worker.
 
 ## Pruebas realizadas
@@ -145,9 +145,8 @@ No modifica Firestore ni datos de boleta.
 - Sintaxis: `node --check ticket.js`, `node --check public.js`, `node --check app.js`.
 - Producción antes del cambio: se comprobó que GitHub Pages responde `main/root` y sirve los recursos versionados.
 - Medición programática de ambas imágenes y detección de centros basada en los píxeles marrones de los granos.
-- Capturas headless de escritorio a 1366px con boleta regular y cortesía, incluyendo modo debug. Se verificó visualmente proporción, máscara, centro, QR cuadrado, acciones y layout horizontal de cortesía.
-- Validación estática de las reglas móviles para 320, 360, 390, 430, 568, 800, 768 y 1024px; regular pasa a una columna bajo 820px y cortesía conserva `display: block`.
+- Capturas con CDP del componente real en fixture: regular 0/5, 1/5 y 5/5; cortesía 0/3, 1/3 y 3/3; en modal y enlace público, a 390×844, 768×1024, 1366×768 y 1920×1080. Se verificó visualmente proporción, máscara, centro, QR cuadrado, acciones y layout horizontal de cortesía.
 
 ## Limitaciones reales
 
-La consola no contiene credenciales de administrador ni un token público de boleta utilizable, por lo que no es posible desde este entorno ejecutar el flujo autenticado real de registro de asistencia ni una captura de Firestore de cada estado 0–5 / 0–3. La implementación mantiene esos listeners y se validó que los cambios de visita no reconstruyen el componente. Tras el despliegue se verifican los archivos `v=8` publicados antes de declarar producción actualizada.
+La consola no contiene credenciales de administrador ni un token público de boleta utilizable, por lo que no es posible desde este entorno ejecutar el flujo autenticado real de registro de asistencia ni una captura de Firestore de cada estado 0–5 / 0–3. La implementación mantiene esos listeners y se validó que los cambios de visita no reconstruyen el componente. Tras el despliegue se verifican los archivos `v=9` publicados antes de declarar producción actualizada.

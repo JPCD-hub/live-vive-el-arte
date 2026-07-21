@@ -906,7 +906,7 @@ textarea:focus-visible {
   width: clamp(112px, 14vw, 150px);
   min-height: 0;
   aspect-ratio: 1;
-  padding: 0;
+  padding: 7px;
   place-items: center;
   background: #fff;
 }
