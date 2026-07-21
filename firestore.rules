@@ -25,12 +25,13 @@ service cloud.firestore {
 
     function validTicket(data) {
       return data.keys().hasAll(['name', 'ticketType', 'visits', 'benefits'])
-        && data.keys().hasOnly(['name', 'ticketType', 'visits', 'benefits', 'createdAt'])
+        && data.keys().hasOnly(['name', 'ticketType', 'visits', 'benefits', 'redeemedCycles', 'createdAt'])
         && data.name is string
         && isTicketType(data.ticketType)
         && data.visits is int
         && data.visits >= 0
         && data.benefits is list
+        && (!data.keys().hasAny(['redeemedCycles']) || (data.redeemedCycles is int && data.redeemedCycles >= 0))
         && (!data.keys().hasAny(['createdAt']) || data.createdAt is timestamp);
     }
 
@@ -108,7 +109,7 @@ service cloud.firestore {
       allow create: if isAdmin() && isToken(ticketToken) && validTicket(request.resource.data)
         && (!request.resource.data.keys().hasAny(['createdAt']) || request.resource.data.createdAt == request.time);
       allow update: if isAdmin() && validTicket(request.resource.data)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'visits', 'benefits'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'visits', 'benefits', 'redeemedCycles'])
         && request.resource.data.visits >= resource.data.visits
         && request.resource.data.visits <= resource.data.visits + 1;
       allow delete: if isAdmin();

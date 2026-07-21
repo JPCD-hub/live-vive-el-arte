@@ -133,10 +133,8 @@ function renderPublicEvents(events) {
 function renderTicket(ticket) {
   const container = $('#public-ticket-content');
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
-  container.innerHTML = `${renderTicketMarkup(ticket)}<div class="ticket-actions"><button class="button button-primary" type="button" data-public-share>Compartir enlace</button><button class="button button-secondary" type="button" data-public-copy>Copiar enlace</button></div>`;
+  container.innerHTML = renderTicketMarkup(ticket);
   const article = container.querySelector('.ticket');
-  container.querySelector('[data-public-share]').addEventListener('click', () => shareTicket(ticket));
-  container.querySelector('[data-public-copy]').addEventListener('click', () => copyTicketLink(ticket));
   loadQrLibrary().then((QRCode) => {
     requestAnimationFrame(() => {
       const renderQr = (element, data, color) => {
@@ -181,31 +179,6 @@ function updatePublicTicketRealtime(ticket) {
   previousPublicTicketState = { ticketToken: ticket.id, visits: ticket.visits, benefits: ticketBenefitTokens(ticket) };
 }
 
-async function copyTicketLink(ticket) {
-  const status = $('#public-ticket-status');
-  try {
-    await navigator.clipboard.writeText(ticketUrl(ticket.id));
-    status.textContent = 'Enlace copiado. Guárdalo en un lugar seguro.';
-  } catch (error) {
-    console.error(error);
-    status.textContent = 'No se pudo copiar el enlace. Selecciónalo desde la barra del navegador.';
-  }
-}
-
-async function shareTicket(ticket) {
-  const status = $('#public-ticket-status');
-  const data = { title: 'Mi boleta Live! Vive el Arte', text: 'Esta es mi boleta personal de Live! Vive el Arte.', url: ticketUrl(ticket.id) };
-  try {
-    if (navigator.share) await navigator.share(data);
-    else await copyTicketLink(ticket);
-  } catch (error) {
-    if (error.name !== 'AbortError') {
-      console.error(error);
-      status.textContent = 'No se pudo compartir el enlace.';
-    }
-  }
-}
-
 function openPublicTicket(token) {
   document.body.classList.add('ticket-mode');
   if (new URLSearchParams(window.location.search).get('debugStamps') === '1') document.body.classList.add('debug-stamps');
@@ -220,7 +193,7 @@ function openPublicTicket(token) {
       return;
     }
     const ticket = { id: snapshot.id, ...snapshot.data() };
-    $('#public-ticket-status').textContent = 'Tu boleta se actualiza en tiempo real.';
+    $('#public-ticket-status').textContent = 'Tu boleta se actualiza en tiempo real. Es personal: no compartas este enlace.';
     updatePublicTicketRealtime(ticket);
     if (!previousPublicTicketState || previousPublicTicketState.ticketToken !== ticket.id) $('#ticket-page-title').focus();
   }, (error) => {
