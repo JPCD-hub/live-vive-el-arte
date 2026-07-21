@@ -66,6 +66,7 @@ function isCourtesy(person) { return person.ticketType === 'courtesy'; }
 function ticketLabel(ticket) { return ticket.ticketType === 'courtesy' ? 'Cortesía' : 'Regular'; }
 function requiredVisits(ticket) { return ticket.ticketType === 'courtesy' ? 3 : BENEFIT_VISITS; }
 function cycleVisits(ticket) { return ticket.ticketType === 'courtesy' ? (Number(ticket.visits) || 0) : (Number(ticket.visits) || 0) % BENEFIT_VISITS; }
+function ticketRegenerationCount(person) { return Number.isInteger(person?.ticketRegenerationCount) ? person.ticketRegenerationCount : 0; }
 function ticketForPerson(person) { return state.tickets.get(person.ticketToken); }
 function countVisits(person) { return ticketForPerson(person)?.visits ?? state.checkins.filter((checkin) => checkin.personId === person.id).length; }
 function sortedEvents() { return state.events.slice().sort((a, b) => a.date.localeCompare(b.date)); }
@@ -301,7 +302,11 @@ function renderPeople() {
     const progress = isCourtesy(person) ? visits : visits % BENEFIT_VISITS;
     const label = isCourtesy(person) ? 'visitas' : 'ciclo';
     const upgrade = isCourtesy(person) && visits >= 3 ? `<button class="small-button upgrade" data-upgrade-person="${person.id}">Pasar a regular</button>` : '';
-    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${progress}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} ${label}</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button><button class="small-button" data-edit-person="${person.id}">Editar</button><button class="small-button" data-regenerate-ticket="${person.id}">Regenerar enlace</button>${upgrade}<button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
+    const regenerations = ticketRegenerationCount(person);
+    const regenerate = regenerations < 2
+      ? `<button class="small-button" data-regenerate-ticket="${person.id}">Regenerar enlace (${regenerations}/2)</button>`
+      : '<span class="muted">Límite de regeneraciones (2/2)</span>';
+    return `<article class="person-row"><div class="person-main"><p class="person-name">${escapeHtml(person.name)} <span class="ticket-type ${isCourtesy(person) ? 'courtesy' : ''}">${ticketLabel(person)}</span></p><p class="person-detail">${escapeHtml(contact)}</p></div><div class="attendance"><b>${progress}</b> / ${isCourtesy(person) ? 3 : BENEFIT_VISITS} ${label}</div><div class="row-actions"><button class="small-button" data-ticket="${person.id}">Ver boleta</button><button class="small-button" data-edit-person="${person.id}">Editar</button>${regenerate}${upgrade}<button class="small-button delete" data-delete-person="${person.id}">Eliminar</button></div></article>`;
   }).join('');
 }
 function renderEvents() {
@@ -350,8 +355,17 @@ function showTicket(personId) {
   if (!ticket) return setFeedback('La boleta todavía no está disponible.', true);
   displayedTicket = ticket;
   displayedPersonId = personId;
+  updateRegenerateTicketAction(person);
   renderTicket($('#ticket-content'), ticket);
   if (!$('#ticket-modal').open) $('#ticket-modal').showModal();
+}
+
+function updateRegenerateTicketAction(person) {
+  const button = $('#regenerate-ticket');
+  if (!button) return;
+  const regenerations = ticketRegenerationCount(person);
+  button.disabled = regenerations >= 2;
+  button.textContent = regenerations >= 2 ? 'Límite de regeneraciones (2/2)' : `Regenerar boleta (${regenerations}/2)`;
 }
 
 function updateTicketBenefitsAdmin(container, ticket) {
@@ -617,7 +631,14 @@ async function upgradeToRegular(personId) {
 
 async function regenerateTicket(personId) {
   const person = state.people.find((item) => item.id === personId);
-  if (!person || !confirm(`Regenerar la boleta de ${person.name}? El enlace y QR actuales dejarán de funcionar.`)) return;
+  const currentRegenerations = ticketRegenerationCount(person);
+  if (!person) return;
+  if (currentRegenerations >= 2) return setFeedback(`${person.name} ya alcanzó el límite de dos regeneraciones.`, true);
+  const preservesProgress = currentRegenerations === 0;
+  const confirmation = preservesProgress
+    ? `Regenerar la boleta de ${person.name}? Esta primera regeneración conservará su progreso, pero invalidará el enlace y QR actuales.`
+    : `Regenerar la boleta de ${person.name}? Esta segunda y última regeneración reiniciará visitas, ciclos y beneficios pendientes.`;
+  if (!confirm(confirmation)) return;
   try {
     requireAdmin();
     const newTicketToken = randomToken();
@@ -631,21 +652,42 @@ async function regenerateTicket(personId) {
         ...benefitMatches.docs.map((item) => transaction.get(doc(db, 'benefits', item.id))),
       ]);
       if (!personSnapshot.exists() || !oldTicketSnapshot.exists()) userError('No se encontró la boleta actual para regenerarla.');
+      const regenerationCount = ticketRegenerationCount(personSnapshot.data());
+      if (regenerationCount >= 2) userError('Esta boleta ya alcanzó el límite de dos regeneraciones.');
+      const preserveProgress = regenerationCount === 0;
       const oldTicket = oldTicketSnapshot.data();
       const personBenefits = benefitSnapshots.filter((item) => item.exists()).map((item) => ({ id: item.id, ...item.data() }));
       const activeBenefits = personBenefits.filter((benefit) => !benefit.usedAt);
-      const refreshedBenefits = activeBenefits.map((benefit) => ({ ...benefit, token: randomToken() }));
-      regeneratedTicket = { id: newTicketToken, name: oldTicket.name, ticketType: oldTicket.ticketType, visits: Number(oldTicket.visits) || 0, benefits: refreshedBenefits.map((benefit) => ({ token: benefit.token, eventName: benefit.eventName })) };
-      transaction.set(doc(db, 'tickets', newTicketToken), { name: regeneratedTicket.name, ticketType: regeneratedTicket.ticketType, visits: regeneratedTicket.visits, benefits: regeneratedTicket.benefits, createdAt: serverTimestamp() });
-      transaction.update(personSnapshot.ref, { ticketToken: newTicketToken, ticketRegeneratedAt: serverTimestamp() });
+      const refreshedBenefits = preserveProgress ? activeBenefits.map((benefit) => ({ ...benefit, token: randomToken() })) : [];
+      regeneratedTicket = {
+        id: newTicketToken,
+        name: oldTicket.name,
+        ticketType: oldTicket.ticketType,
+        visits: preserveProgress ? Number(oldTicket.visits) || 0 : 0,
+        redeemedCycles: preserveProgress ? Number(oldTicket.redeemedCycles) || 0 : 0,
+        benefits: refreshedBenefits.map((benefit) => ({ token: benefit.token, eventName: benefit.eventName })),
+      };
+      transaction.set(doc(db, 'tickets', newTicketToken), {
+        name: regeneratedTicket.name,
+        ticketType: regeneratedTicket.ticketType,
+        visits: regeneratedTicket.visits,
+        redeemedCycles: regeneratedTicket.redeemedCycles,
+        benefits: regeneratedTicket.benefits,
+        createdAt: serverTimestamp(),
+      });
+      transaction.update(personSnapshot.ref, { ticketToken: newTicketToken, ticketRegenerationCount: regenerationCount + 1, ticketRegeneratedAt: serverTimestamp() });
       refreshedBenefits.forEach((benefit) => transaction.update(doc(db, 'benefits', benefit.id), { ticketToken: newTicketToken, token: benefit.token }));
+      if (!preserveProgress) activeBenefits.forEach((benefit) => transaction.delete(doc(db, 'benefits', benefit.id)));
       personBenefits.filter((benefit) => benefit.usedAt).forEach((benefit) => transaction.update(doc(db, 'benefits', benefit.id), { ticketToken: newTicketToken }));
       transaction.delete(oldTicketSnapshot.ref);
     });
     displayedTicket = regeneratedTicket;
     displayedPersonId = person.id;
+    updateRegenerateTicketAction({ ...person, ticketRegenerationCount: currentRegenerations + 1 });
     renderTicket($('#ticket-content'), displayedTicket);
-    setFeedback(`Boleta regenerada para ${person.name}. Comparte el nuevo enlace.`, false);
+    setFeedback(preservesProgress
+      ? `Boleta regenerada para ${person.name}. Se conservó el progreso y queda una regeneración disponible.`
+      : `Boleta regenerada para ${person.name}. El progreso se reinició y se alcanzó el límite de dos regeneraciones.`, false);
   } catch (error) { reportOperationError(error); }
 }
 

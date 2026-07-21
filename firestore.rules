@@ -37,7 +37,7 @@ service cloud.firestore {
 
     function validPerson(data) {
       return data.keys().hasAll(['name', 'ticketType', 'email', 'phone', 'note', 'ticketToken'])
-        && data.keys().hasOnly(['name', 'ticketType', 'email', 'phone', 'note', 'ticketToken', 'createdAt', 'upgradedAt', 'ticketRegeneratedAt'])
+        && data.keys().hasOnly(['name', 'ticketType', 'email', 'phone', 'note', 'ticketToken', 'ticketRegenerationCount', 'createdAt', 'upgradedAt', 'ticketRegeneratedAt'])
         && data.name is string
         && isTicketType(data.ticketType)
         && data.email is string
@@ -46,7 +46,12 @@ service cloud.firestore {
         && isToken(data.ticketToken)
         && (!data.keys().hasAny(['createdAt']) || data.createdAt is timestamp)
         && (!data.keys().hasAny(['upgradedAt']) || data.upgradedAt is timestamp)
+        && (!data.keys().hasAny(['ticketRegenerationCount']) || (data.ticketRegenerationCount is int && data.ticketRegenerationCount >= 0 && data.ticketRegenerationCount <= 2))
         && (!data.keys().hasAny(['ticketRegeneratedAt']) || data.ticketRegeneratedAt is timestamp);
+    }
+
+    function ticketRegenerationCount(data) {
+      return data.keys().hasAny(['ticketRegenerationCount']) ? data.ticketRegenerationCount : 0;
     }
 
     function validEvent(data) {
@@ -124,13 +129,14 @@ service cloud.firestore {
         && ((request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'email', 'phone', 'note'])
           && request.resource.data.ticketType == resource.data.ticketType
           && request.resource.data.ticketToken == resource.data.ticketToken)
-          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ticketType', 'ticketToken', 'upgradedAt', 'ticketRegeneratedAt'])
+          || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ticketType', 'ticketToken', 'ticketRegenerationCount', 'upgradedAt', 'ticketRegeneratedAt'])
           && request.resource.data.ticketToken != resource.data.ticketToken
           && ((resource.data.ticketType == 'courtesy'
           && request.resource.data.ticketType == 'regular'
-          && request.resource.data.upgradedAt == request.time)
-          || (resource.data.ticketType == request.resource.data.ticketType
-            && request.resource.data.ticketRegeneratedAt == request.time))));
+           && request.resource.data.upgradedAt == request.time)
+           || (resource.data.ticketType == request.resource.data.ticketType
+            && request.resource.data.ticketRegeneratedAt == request.time
+            && ticketRegenerationCount(request.resource.data) == ticketRegenerationCount(resource.data) + 1))));
       allow delete: if isAdmin();
     }
 
