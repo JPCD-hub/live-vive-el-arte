@@ -33,8 +33,9 @@ export function ticketBenefitTokens(ticket) {
 
 export function ticketVisitText(ticket) {
   const { visits, courtesy, required, progress } = ticketState(ticket);
+  const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
   if (courtesy) return visits >= required ? 'Las 3 cortesías ya fueron utilizadas. Esta boleta no admite más ingresos.' : `Entrada de cortesía: ${progress} de ${required} miércoles utilizados.`;
-  if (visits && visits % required === 0) return `Completaste ${visits} asistencias. Ya tienes un beneficio disponible.`;
+  if (visits && visits % required === 0) return benefits.length ? `Completaste ${visits} asistencias. Ya tienes un beneficio disponible.` : `Completaste ${visits} asistencias. Tu beneficio se asignará para el próximo evento disponible.`;
   return `${progress} de ${required} asistencias en el ciclo actual · ${visits} en total.`;
 }
 

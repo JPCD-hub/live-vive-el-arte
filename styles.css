@@ -736,6 +736,12 @@ textarea:focus-visible {
   padding: 14px;
   border-top: 1px solid var(--line);
 }
+.ticket-modal > .ticket-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  background: #f6eedf;
+}
 .ticket-actions .button {
   flex: 0 1 auto;
   width: auto;

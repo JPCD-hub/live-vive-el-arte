@@ -21,7 +21,7 @@ import {
   where,
   writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { renderTicketMarkup, ticketBenefitMarkup, updateTicketDebug, updateTicketRealtimeState } from './ticket.js?v=6';
+import { renderTicketMarkup, ticketBenefitMarkup, updateTicketDebug, updateTicketRealtimeState } from './ticket.js?v=7';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBK9l6lVxoAfgiLmLmK2qJCIVwFc0xNfqI',

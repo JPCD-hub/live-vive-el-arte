@@ -27,16 +27,16 @@ No existen `.github/workflows`, `docs/`, `dist/`, `build/`, rama `gh-pages` ni o
 
 La página pública carga:
 
-- `styles.css?v=6`
-- `public.css?v=6`
-- `public.js?v=6`
-- `ticket.js?v=6` como import ES module de `public.js`
+- `styles.css?v=7`
+- `public.css?v=7`
+- `public.js?v=7`
+- `ticket.js?v=7` como import ES module de `public.js`
 
 La administración carga:
 
-- `../styles.css?v=6`
-- `../app.js?v=6`
-- `../ticket.js?v=6` como import ES module de `app.js`
+- `../styles.css?v=7`
+- `../app.js?v=7`
+- `../ticket.js?v=7` como import ES module de `app.js`
 
 `styles.css` es la única fuente de estilos internos de la boleta. `public.css` contiene exclusivamente la portada, encabezado, contenedor exterior de enlace público, espaciado y footer.
 
@@ -96,7 +96,7 @@ La máscara `::before` y el grano activo `::after` usan el mismo centro (`left: 
 - `.ticket-modal`: `width: min(1050px, calc(100vw - 32px))`, `max-height: min(92dvh, 900px)`, scroll vertical interno y sin scroll horizontal.
 - En móvil ocupa el viewport con `100dvh`.
 - El botón de cierre usa `position: sticky` para permanecer disponible durante el scroll.
-- Las acciones usan `flex-wrap`, `gap: 10px`, mínimo de 150px y altura mínima de 44px; en móvil ocupan la fila completa sin deformarse.
+- Las acciones usan `flex-wrap`, `gap: 10px`, mínimo de 150px y altura mínima de 44px; en móvil ocupan la fila completa sin deformarse. En el modal son `sticky` al borde inferior para no quedar cortadas.
 
 ## Enlace público
 
@@ -115,6 +115,8 @@ La máscara `::before` y el grano activo `::after` usan el mismo centro (`left: 
 
 El QR usa `.qr-container { flex: 0 0 auto }` y `.qr { width: clamp(112px, 14vw, 150px); aspect-ratio: 1 }`. Tras generar un QR se elimina el `img` fallback añadido después de `canvas`, evitando dos representaciones visibles.
 
+El texto solo indica que hay un beneficio disponible cuando `ticket.benefits` contiene una tarjeta activa. Si se completan cinco visitas sin un beneficio asignado todavía, informa que se asignará al próximo evento disponible; así no se muestra un beneficio inexistente.
+
 ## Modo de calibración
 
 Agrega `?debugStamps=1` al enlace público o a `/admin/`:
@@ -130,10 +132,10 @@ No modifica Firestore ni datos de boleta.
 
 ## Caché y producción
 
-- `sw.js` cache actual: `live-vive-el-arte-public-v11`.
+- `sw.js` cache actual: `live-vive-el-arte-public-v12`.
 - Al activarse elimina cualquier caché anterior con el mismo prefijo y ejecuta `clients.claim()`.
 - Navegaciones: network-first con fallback a `index.html`.
-- CSS y JavaScript: stale-while-revalidate; las URLs `v=6` evitan coincidencias con recursos previos.
+- CSS y JavaScript: stale-while-revalidate; las URLs `v=7` evitan coincidencias con recursos previos.
 - Las navegaciones con `?boleta=` no se cachean; Firestore, Firebase Auth, datos personales y rutas administrativas no se almacenan en el worker.
 
 ## Pruebas realizadas
@@ -146,4 +148,4 @@ No modifica Firestore ni datos de boleta.
 
 ## Limitaciones reales
 
-La consola no contiene credenciales de administrador ni un token público de boleta utilizable, por lo que no es posible desde este entorno ejecutar el flujo autenticado real de registro de asistencia ni una captura de Firestore de cada estado 0–5 / 0–3. La implementación mantiene esos listeners y se validó que los cambios de visita no reconstruyen el componente. Tras el despliegue se verifican los archivos `v=6` publicados antes de declarar producción actualizada.
+La consola no contiene credenciales de administrador ni un token público de boleta utilizable, por lo que no es posible desde este entorno ejecutar el flujo autenticado real de registro de asistencia ni una captura de Firestore de cada estado 0–5 / 0–3. La implementación mantiene esos listeners y se validó que los cambios de visita no reconstruyen el componente. Tras el despliegue se verifican los archivos `v=7` publicados antes de declarar producción actualizada.
