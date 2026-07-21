@@ -40,6 +40,7 @@ const APP_NAME = 'live-vive-el-arte';
 const state = { people: [], events: [], checkins: [], benefits: [], tickets: new Map() };
 const $ = (selector) => document.querySelector(selector);
 let scanner = null;
+let scannerVideoObserver = null;
 let displayedTicket = null;
 let operationalUnsubscribers = [];
 let isAdmin = false;
@@ -207,7 +208,34 @@ function cameraErrorMessage(error) {
     NotReadableError: 'La cámara está siendo usada por otra aplicación. Ciérrala e intenta de nuevo.',
     OverconstrainedError: 'La cámara seleccionada no está disponible. Elige otra cámara e intenta de nuevo.',
   };
-  return messages[error?.name] || `No se pudo abrir la cámara. ${error?.message || 'Revisa el permiso y vuelve a intentarlo.'}`;
+  const message = messages[error?.name] || `No se pudo abrir la cámara. ${error?.message || 'Revisa el permiso y vuelve a intentarlo.'}`;
+  return isAppleMobile() ? `${message} En iPhone, verifica que Safari tenga permiso de Cámara en Ajustes.` : message;
+}
+
+function isAppleMobile() {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function scannerVideoConstraints() {
+  return {
+    facingMode: { ideal: 'environment' },
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+  };
+}
+
+function optimizeScannerVideo() {
+  const reader = $('#qr-reader');
+  scannerVideoObserver?.disconnect();
+  const applyInlinePlayback = () => reader.querySelectorAll('video').forEach((video) => {
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.muted = true;
+    video.autoplay = true;
+  });
+  scannerVideoObserver = new MutationObserver(applyInlinePlayback);
+  scannerVideoObserver.observe(reader, { childList: true, subtree: true });
+  applyInlinePlayback();
 }
 
 function updateAccessUi(user = auth.currentUser) {
@@ -1145,7 +1173,7 @@ async function startScanner() {
   updateEntryControls();
   try {
     setFeedback('Solicitando permiso de cámara...');
-    const permissionStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    const permissionStream = await navigator.mediaDevices.getUserMedia({ video: scannerVideoConstraints(), audio: false });
     permissionStream.getTracks().forEach((track) => track.stop());
     if (!scannerStarting) return;
     setFeedback('Cargando lector QR...');
@@ -1169,9 +1197,17 @@ async function startScanner() {
     $('#qr-reader').hidden = false;
     $('#start-scanner').hidden = true;
     $('#stop-scanner').hidden = false;
+    if (isAppleMobile()) $('#scan-note').textContent = 'En iPhone, apunta con la cámara trasera, mantén el QR dentro del recuadro y evita cambiar de aplicación.';
+    optimizeScannerVideo();
     let activeScanner = new Html5Qrcode('qr-reader');
     scanner = activeScanner;
-    const scanConfig = { fps: 10, qrbox: { width: 220, height: 220 } };
+    const scanConfig = {
+      fps: isAppleMobile() ? 8 : 10,
+      qrbox: (width, height) => {
+        const size = Math.min(width, height, isAppleMobile() ? 260 : 240);
+        return { width: size, height: size };
+      },
+    };
     const onDecode = async (decoded) => {
       if (scannerDecoding || entryInFlight) return;
       scannerDecoding = true;
@@ -1190,16 +1226,26 @@ async function startScanner() {
         await submitEntry(operation, true);
       } catch (error) { reportOperationError(error); } finally { scannerDecoding = false; }
     };
-    try {
-      await activeScanner.start({ deviceId: { exact: cameraSelect.value } }, scanConfig, onDecode);
-    } catch (selectedCameraError) {
-      if (!scannerStarting) throw selectedCameraError;
-      try { await activeScanner.clear(); } catch (_) { /* The selected camera never completed startup. */ }
-      activeScanner = new Html5Qrcode('qr-reader');
-      scanner = activeScanner;
-      await activeScanner.start({ facingMode: { ideal: 'environment' } }, scanConfig, onDecode);
-      setFeedback('La cámara elegida no respondió. Se está usando una cámara disponible.');
+    const preferRearCamera = isAppleMobile() && !cameraSelect.dataset.userSelected;
+    const startCandidates = preferRearCamera
+      ? [scannerVideoConstraints(), { deviceId: { exact: cameraSelect.value } }]
+      : [{ deviceId: { exact: cameraSelect.value } }, scannerVideoConstraints()];
+    let startError;
+    for (let index = 0; index < startCandidates.length; index += 1) {
+      try {
+        await activeScanner.start(startCandidates[index], scanConfig, onDecode);
+        if (index > 0) setFeedback('La cámara elegida no respondió. Se está usando una cámara disponible.');
+        startError = null;
+        break;
+      } catch (error) {
+        startError = error;
+        if (!scannerStarting) throw error;
+        try { await activeScanner.clear(); } catch (_) { /* The selected camera never completed startup. */ }
+        activeScanner = new Html5Qrcode('qr-reader');
+        scanner = activeScanner;
+      }
     }
+    if (startError) throw startError;
   } catch (error) {
     console.error(error);
     setFeedback(cameraErrorMessage(error), true);
@@ -1213,6 +1259,8 @@ async function stopScanner(keepDecodeLock = false) {
   const activeScanner = scanner;
   scanner = null;
   scannerStarting = false;
+  scannerVideoObserver?.disconnect();
+  scannerVideoObserver = null;
   if (activeScanner) {
     try { await activeScanner.stop(); } catch (_) { /* The scanner did not start completely. */ }
     try { await activeScanner.clear(); } catch (_) { /* The scanner was already cleared. */ }
@@ -1221,12 +1269,14 @@ async function stopScanner(keepDecodeLock = false) {
   $('#qr-reader').hidden = true;
   $('#start-scanner').hidden = false;
   $('#stop-scanner').hidden = true;
+  $('#scan-note').textContent = 'La cámara se activa solo al solicitarla. Si no está disponible, usa el ingreso manual.';
   updateEntryControls();
 }
 $('#start-scanner').addEventListener('click', startScanner);
 $('#stop-scanner').addEventListener('click', stopScanner);
 $('#camera-select').addEventListener('change', async () => {
   if (!scanner) return;
+  $('#camera-select').dataset.userSelected = 'true';
   await stopScanner();
   startScanner();
 });

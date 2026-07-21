@@ -525,7 +525,8 @@ h2 {
   aspect-ratio: 1;
   margin-top: 16px;
   overflow: hidden;
-  background: #fff;
+  isolation: isolate;
+  background: #001b14;
 }
 
 #qr-reader video,
@@ -533,6 +534,13 @@ h2 {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover;
+}
+
+#qr-reader video {
+  display: block;
+  max-width: none;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
 }
 
 /* ========== EVENTS ========== */
