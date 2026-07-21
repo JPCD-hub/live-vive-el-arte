@@ -21,6 +21,7 @@ import {
   where,
   writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getDownloadURL, getStorage, ref as storageRef, uploadBytes } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 import { renderTicketMarkup, ticketBenefitMarkup, ticketState, updateTicketDebug, updateTicketRealtimeState } from './ticket.js?v=9';
 
 const firebaseConfig = {
@@ -35,8 +36,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const storage = getStorage(app);
 const BENEFIT_VISITS = 5;
 const APP_NAME = 'live-vive-el-arte';
+const EVENT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+const EVENT_IMAGE_MAX_DIMENSION = 1600;
 const state = { people: [], events: [], checkins: [], benefits: [], tickets: new Map() };
 const $ = (selector) => document.querySelector(selector);
 let scanner = null;
@@ -62,6 +66,8 @@ let eventLoadError = '';
 let activeEventMenuId = null;
 let displayedEventDetailsId = null;
 let lastEventRenderSignature = '';
+let selectedEventImageFile = null;
+let eventImagePreviewUrl = '';
 
 function localDate() {
   const now = new Date();
@@ -70,6 +76,86 @@ function localDate() {
 }
 function escapeHtml(value = '') { const node = document.createElement('div'); node.textContent = value; return node.innerHTML; }
 function formatDate(value) { return new Intl.DateTimeFormat('es-CO', { dateStyle: 'long' }).format(new Date(`${value}T12:00:00`)); }
+function formatEventTime(value) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value || '');
+  if (!match) return value || '';
+  const hour = Number(match[1]);
+  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
+function parseEventTime(value) {
+  const normalized = value.trim().toUpperCase().replace(/\./g, '').replace(/\s+/g, '');
+  if (!normalized) return '';
+  const match = /^(1[0-2]|[1-9])(?::([0-5]\d))?(AM|PM)$/.exec(normalized);
+  if (!match) userError('Usa un formato de 12 horas, por ejemplo 7:30 PM.');
+  let hour = Number(match[1]);
+  if (match[3] === 'PM' && hour !== 12) hour += 12;
+  if (match[3] === 'AM' && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, '0')}:${match[2] || '00'}`;
+}
+function clearEventImagePreviewUrl() {
+  if (eventImagePreviewUrl) URL.revokeObjectURL(eventImagePreviewUrl);
+  eventImagePreviewUrl = '';
+}
+function showEventImagePreview(url) {
+  const preview = $('#event-image-preview');
+  const image = $('#event-image-preview-image');
+  preview.hidden = !url;
+  if (url) image.src = url;
+  else image.removeAttribute('src');
+}
+function resetEventImage(url = '') {
+  selectedEventImageFile = null;
+  clearEventImagePreviewUrl();
+  $('#event-image-file').value = '';
+  $('#event-image-url').value = url;
+  showEventImagePreview(url);
+}
+function validateEventImage(file) {
+  if (!file) return;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) userError('Adjunta una imagen JPG, PNG o WebP.');
+  if (file.size > EVENT_IMAGE_MAX_BYTES) userError('El flyer debe pesar menos de 10 MB.');
+}
+function previewSelectedEventImage(file) {
+  validateEventImage(file);
+  selectedEventImageFile = file;
+  clearEventImagePreviewUrl();
+  eventImagePreviewUrl = URL.createObjectURL(file);
+  showEventImagePreview(eventImagePreviewUrl);
+}
+async function optimizeEventImage(file) {
+  validateEventImage(file);
+  return new Promise((resolve, reject) => {
+    const source = new Image();
+    const sourceUrl = URL.createObjectURL(file);
+    source.onload = () => {
+      URL.revokeObjectURL(sourceUrl);
+      const scale = Math.min(1, EVENT_IMAGE_MAX_DIMENSION / Math.max(source.naturalWidth, source.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
+      canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) return reject(new Error('No se pudo optimizar el flyer.'));
+        resolve(new File([blob], 'flyer.webp', { type: 'image/webp' }));
+      }, 'image/webp', 0.82);
+    };
+    source.onerror = () => {
+      URL.revokeObjectURL(sourceUrl);
+      reject(new Error('No se pudo leer el flyer.'));
+    };
+    source.src = sourceUrl;
+  });
+}
+async function eventImageUrl(eventId) {
+  if (!selectedEventImageFile) return $('#event-image-url').value.trim();
+  const feedback = $('#event-form-feedback');
+  feedback.textContent = 'Optimizando y subiendo flyer...';
+  feedback.classList.remove('error');
+  const image = await optimizeEventImage(selectedEventImageFile);
+  const imageRef = storageRef(storage, `event-flyers/${eventId}/${randomToken()}.webp`);
+  await uploadBytes(imageRef, image, { contentType: image.type, cacheControl: 'public,max-age=31536000,immutable' });
+  return getDownloadURL(imageRef);
+}
 function isCourtesy(person) { return person.ticketType === 'courtesy'; }
 function ticketLabel(ticket) { return ticket.ticketType === 'courtesy' ? 'Cortesía' : 'Regular'; }
 function requiredVisits(ticket) { return ticket.ticketType === 'courtesy' ? 3 : BENEFIT_VISITS; }
@@ -245,9 +331,9 @@ function updateAccessUi(user = auth.currentUser) {
   $('#sign-in').hidden = Boolean(user);
   $('#sign-out').hidden = !user;
   $('#auth-status').textContent = isAdmin
-    ? `Administrando como ${user.displayName || user.email}`
+    ? 'Administracion activa'
     : user
-      ? `Esta cuenta aún no tiene acceso de administración. ID: ${user.uid}`
+      ? 'Esta cuenta no tiene acceso de administracion.'
       : authIssue || 'Consulta tu boleta con su enlace personal.';
 }
 
@@ -439,7 +525,7 @@ function eventCardMarkup(event) {
   const attendances = eventAttendance(event.id);
   const incomeLabel = `${attendances} ${attendances === 1 ? 'ingreso' : 'ingresos'}`;
   const menuId = `event-menu-${event.id}`;
-  const timeLabel = `${formatDate(event.date)}${event.time ? ` a las ${event.time}` : ''}`;
+  const timeLabel = `${formatDate(event.date)}${event.time ? ` a las ${formatEventTime(event.time)}` : ''}`;
   return `<article class="event-card${presentation.past ? ' event-card--past' : ''}" data-event-id="${event.id}"><header class="event-card__header"><time class="event-card__date" datetime="${event.date}" aria-label="${escapeHtml(timeLabel)}">${compactEventDate(event.date)}</time><div class="event-card__menu"><button class="event-menu-button" type="button" data-event-menu-button aria-label="Acciones del evento" aria-expanded="false" aria-controls="${menuId}">⋮</button><div id="${menuId}" class="event-menu" role="menu" hidden><button type="button" role="menuitem" data-edit-event="${event.id}">Editar</button><button type="button" role="menuitem" data-event-details="${event.id}">Ver detalles</button><button type="button" role="menuitem" data-manage-event="${event.id}">Gestionar ingresos</button><button type="button" role="menuitem" class="event-menu__delete" data-delete-event="${event.id}">Eliminar</button></div></div></header><div class="event-card__body"><h3 class="event-card__title">${escapeHtml(event.name)}</h3><p class="event-card__description">${escapeHtml(event.description || 'Sin descripción disponible.')}</p></div><footer class="event-card__footer"><span class="event-status" data-status="${presentation.key}">Estado: ${presentation.label}</span><span class="event-income"><span aria-hidden="true">↗</span>${incomeLabel}</span></footer></article>`;
 }
 function renderSelects() {
@@ -833,16 +919,17 @@ async function createEvent(event) {
   const newEvent = {
     name: $('#event-name').value.trim(),
     date: $('#event-date').value,
-    time: $('#event-time').value,
+    time: parseEventTime($('#event-time').value),
     location: $('#event-location').value.trim(),
     status: $('#event-status').value,
-    imageUrl: $('#event-image-url').value.trim(),
+    imageUrl: await eventImageUrl(eventRef.id),
     description: $('#event-description').value.trim(),
     createdAt: serverTimestamp(),
   };
   await setDoc(eventRef, newEvent);
   await resolvePendingBenefits({ id: eventRef.id, ...newEvent });
   form.reset();
+  resetEventImage();
   $('#event-date').value = localDate();
   $('#event-form').close();
 }
@@ -854,10 +941,10 @@ function openEventForm(eventId) {
   $('#event-form-title').textContent = event ? 'Editar evento' : 'Crear evento';
   $('#event-name').value = event?.name || '';
   $('#event-date').value = event?.date || localDate();
-  $('#event-time').value = event?.time || '';
+  $('#event-time').value = formatEventTime(event?.time);
   $('#event-location').value = event?.location || '';
   $('#event-status').value = event?.status || 'published';
-  $('#event-image-url').value = event?.imageUrl || '';
+  resetEventImage(event?.imageUrl || '');
   $('#event-description').value = event?.description || '';
   $('#event-form-feedback').textContent = '';
   form.showModal();
@@ -873,7 +960,7 @@ async function updateEvent(event) {
   const updates = {
     name: $('#event-name').value.trim(),
     date: $('#event-date').value,
-    time: $('#event-time').value,
+    time: parseEventTime($('#event-time').value),
     location: $('#event-location').value.trim(),
     status: $('#event-status').value,
     imageUrl: $('#event-image-url').value.trim(),
@@ -891,10 +978,12 @@ async function updateEvent(event) {
     : null;
   if (linkedBenefits?.docs.some((item) => !item.data().usedAt)) userError('No se puede despublicar este evento mientras tenga beneficios disponibles. Canjéalos o reasígnalos primero.');
   if (affectedBenefits && affectedBenefits.docs.length > 180) userError('Este evento tiene demasiados beneficios asignados para cambiar su nombre desde el navegador. Contacta al soporte técnico.');
+  updates.imageUrl = await eventImageUrl(eventId);
   if (affectedBenefits) await updateEventAndBenefitNames(eventId, { ...existingData, ...updates }, affectedBenefits, updates.name);
   else await setDoc(doc(db, 'events', eventId), { ...existingData, ...updates }, { merge: false });
   if (existing.status !== 'published' && updates.status === 'published') await resolvePendingBenefits({ id: eventId, ...existingData, ...updates });
   form.reset();
+  resetEventImage();
   $('#event-id').value = '';
   $('#event-form').close();
 }
@@ -1006,7 +1095,7 @@ function showEventDetails(eventId) {
   const attendances = eventAttendance(event.id);
   const content = $('#event-details-content');
   const incomeLabel = `${attendances} ${attendances === 1 ? 'ingreso' : 'ingresos'}`;
-  content.innerHTML = `<div><dt>Fecha</dt><dd><time datetime="${event.date}">${escapeHtml(formatDate(event.date))}${event.time ? ` · ${escapeHtml(event.time)}` : ''}</time></dd></div><div><dt>Estado</dt><dd>${presentation.label}</dd></div><div><dt>Ingresos</dt><dd>${incomeLabel}</dd></div><div><dt>Lugar</dt><dd>${escapeHtml(event.location || 'Sin lugar definido')}</dd></div><div><dt>Descripción</dt><dd>${escapeHtml(event.description || 'Sin descripción disponible.')}</dd></div>`;
+  content.innerHTML = `<div><dt>Fecha</dt><dd><time datetime="${event.date}">${escapeHtml(formatDate(event.date))}${event.time ? ` · ${escapeHtml(formatEventTime(event.time))}` : ''}</time></dd></div><div><dt>Estado</dt><dd>${presentation.label}</dd></div><div><dt>Ingresos</dt><dd>${incomeLabel}</dd></div><div><dt>Lugar</dt><dd>${escapeHtml(event.location || 'Sin lugar definido')}</dd></div><div><dt>Descripción</dt><dd>${escapeHtml(event.description || 'Sin descripción disponible.')}</dd></div>`;
   displayedEventDetailsId = event.id;
   $('#event-details').showModal();
 }
@@ -1106,6 +1195,20 @@ $('#event-details-manage').addEventListener('click', () => {
   const eventId = displayedEventDetailsId;
   if (eventId) manageEventAttendances(eventId);
 });
+$('#event-image-file').addEventListener('change', (event) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    previewSelectedEventImage(file);
+    $('#event-form-feedback').textContent = 'El flyer se optimizara al guardar el evento.';
+    $('#event-form-feedback').classList.remove('error');
+  } catch (error) {
+    event.target.value = '';
+    $('#event-form-feedback').textContent = error instanceof UserMessageError ? error.message : 'No se pudo preparar el flyer.';
+    $('#event-form-feedback').classList.add('error');
+  }
+});
+$('#remove-event-image').addEventListener('click', () => resetEventImage());
 document.addEventListener('pointerdown', (event) => {
   if (activeEventMenuId && !event.target.closest('.event-card__menu')) closeEventMenu();
 });
@@ -1134,6 +1237,7 @@ $('#new-event-form').addEventListener('submit', async (event) => {
   if (event.submitter?.value === 'cancel') return $('#event-form').close();
   await submitForm(event.currentTarget, () => $('#event-id').value ? updateEvent(event) : createEvent(event));
 });
+$('#event-form').addEventListener('close', () => resetEventImage());
 $('#manual-checkin').addEventListener('click', () => submitEntry(() => registerCheckin($('#manual-person').value, currentEvent())));
 $('#manual-code-checkin').addEventListener('click', () => submitEntry(async () => {
   const payload = payloadFromValue($('#manual-ticket-code').value);

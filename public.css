@@ -76,7 +76,7 @@ h3 { color: var(--green); font-size: 20px; line-height: 1.05; }
 .status-text, .form-help, .form-feedback { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
 .public-events { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .public-event-card { display: flex; min-height: 230px; flex-direction: column; padding: 24px; border: 1px solid var(--line); background: #f7f0e4; }
-.public-event-card > img { width: calc(100% + 48px); aspect-ratio: 16 / 9; margin: -24px -24px 20px; object-fit: cover; }
+.public-event-card > img { width: calc(100% + 48px); aspect-ratio: 4 / 5; margin: -24px -24px 20px; object-fit: contain; background: #e6ded0; }
 .public-event-card time { color: var(--red); font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
 .public-event-card h3 { margin: 14px 0 8px; font-size: 24px; text-transform: uppercase; }
 .public-event-card p { margin: 0; color: #536057; }

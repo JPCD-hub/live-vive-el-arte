@@ -860,6 +860,11 @@ textarea:focus-visible {
   resize: vertical;
 }
 
+.form-modal .form-help { margin: -12px 0 0; color: #59635c; font-size: 12px; }
+.event-image-preview { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--line); background: #f7f0e4; }
+.event-image-preview img { width: 100%; max-height: 280px; object-fit: contain; background: var(--paper); }
+.event-image-preview .small-button { justify-self: start; }
+
 .form-actions {
   display: flex;
   align-items: center;

@@ -40,6 +40,13 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('es-CO', { dateStyle: 'long' }).format(date);
 }
 
+function formatEventTime(value) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value || '');
+  if (!match) return value || '';
+  const hour = Number(match[1]);
+  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
+
 function localToday() {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -113,8 +120,10 @@ function renderPublicEvents(events) {
           image.src = imageUrl.toString();
           image.alt = `Imagen del evento ${event.name || 'Live!'}`;
           image.loading = 'lazy';
-          image.width = 640;
-          image.height = 360;
+          image.decoding = 'async';
+          image.fetchPriority = 'low';
+          image.width = 1200;
+          image.height = 1500;
           article.append(image);
         }
       } catch (_) { /* Invalid optional image URLs are not rendered. */ }
@@ -124,7 +133,7 @@ function renderPublicEvents(events) {
     const title = create('h3', event.name || 'Encuentro Live!');
     const description = create('p', event.description || 'Pronto compartiremos más información sobre este encuentro.');
     article.append(time, title, description);
-    const meta = [event.status === 'published' ? 'Programado' : '', event.time, event.location].filter(Boolean).join(' · ');
+    const meta = [event.status === 'published' ? 'Programado' : '', formatEventTime(event.time), event.location].filter(Boolean).join(' · ');
     if (meta) article.append(create('p', meta, 'event-meta'));
     container.append(article);
   });
