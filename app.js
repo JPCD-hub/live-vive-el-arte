@@ -61,6 +61,7 @@ let eventsLoaded = false;
 let eventLoadError = '';
 let activeEventMenuId = null;
 let displayedEventDetailsId = null;
+let lastEventRenderSignature = '';
 
 function localDate() {
   const now = new Date();
@@ -262,6 +263,7 @@ function stopOperationalListeners() {
   eventsLoaded = false;
   eventLoadError = '';
   activeEventMenuId = null;
+  lastEventRenderSignature = '';
   updateConnectionStatus();
 }
 
@@ -363,6 +365,15 @@ function renderEvents() {
   const results = $('#event-results');
   const clearFilters = $('#event-clear-filters');
   if (!list || !empty || !error || !results || !clearFilters) return;
+  const renderSignature = JSON.stringify({
+    loaded: eventsLoaded,
+    error: eventLoadError,
+    controls: eventUi,
+    events: state.events.map(({ id, name, date, time, location, status, imageUrl, description }) => ({ id, name, date, time, location, status, imageUrl, description })),
+    checkins: state.checkins.map(({ id, eventId }) => ({ id, eventId })),
+  });
+  if (renderSignature === lastEventRenderSignature) return;
+  lastEventRenderSignature = renderSignature;
   if (!eventsLoaded) {
     list.setAttribute('aria-busy', 'true');
     list.innerHTML = '<div class="event-card event-card--skeleton" aria-hidden="true"><span></span><span></span><span></span></div><div class="event-card event-card--skeleton" aria-hidden="true"><span></span><span></span><span></span></div><div class="event-card event-card--skeleton" aria-hidden="true"><span></span><span></span><span></span></div>';
