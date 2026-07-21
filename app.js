@@ -21,7 +21,7 @@ import {
   where,
   writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { renderTicketMarkup, ticketBenefitMarkup, updateTicketDebug, updateTicketRealtimeState } from './ticket.js?v=9';
+import { renderTicketMarkup, ticketBenefitMarkup, ticketState, updateTicketDebug, updateTicketRealtimeState } from './ticket.js?v=9';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBK9l6lVxoAfgiLmLmK2qJCIVwFc0xNfqI',
@@ -299,7 +299,8 @@ function renderPeople() {
   $('#people-list').innerHTML = people.map((person) => {
     const contact = [person.email, person.phone].filter(Boolean).join(' · ') || 'Sin datos de contacto';
     const visits = countVisits(person);
-    const progress = isCourtesy(person) ? visits : visits % BENEFIT_VISITS;
+    const ticket = ticketForPerson(person);
+    const progress = ticket ? ticketState(ticket).progress : isCourtesy(person) ? visits : visits % BENEFIT_VISITS;
     const label = isCourtesy(person) ? 'visitas' : 'ciclo';
     const upgrade = isCourtesy(person) && visits >= 3 ? `<button class="small-button upgrade" data-upgrade-person="${person.id}">Pasar a regular</button>` : '';
     const regenerations = ticketRegenerationCount(person);

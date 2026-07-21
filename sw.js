@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'live-vive-el-arte-public-';
-const CACHE = `${CACHE_PREFIX}v16`;
-const SHELL = ['./', './index.html', './styles.css?v=9', './public.css?v=9', './public.js?v=10', './app.js?v=10', './ticket.js?v=9', './assets/icon.svg', './assets/social-live.svg', './Boleta%202.jpeg', './boleta%201.jpeg'];
+const CACHE = `${CACHE_PREFIX}v17`;
+const SHELL = ['./', './index.html', './styles.css?v=9', './public.css?v=9', './public.js?v=10', './app.js?v=11', './ticket.js?v=9', './assets/icon.svg', './assets/social-live.svg', './Boleta%202.jpeg', './boleta%201.jpeg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
