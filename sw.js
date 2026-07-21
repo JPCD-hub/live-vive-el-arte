@@ -1,14 +1,13 @@
 const CACHE_PREFIX = 'live-vive-el-arte-public-';
-const CACHE = `${CACHE_PREFIX}v10`;
-const LEGACY_CACHES = ['live-public-shell-v1', `${CACHE_PREFIX}v8`, `${CACHE_PREFIX}v9`];
-const SHELL = ['./', './index.html', './styles.css?v=5', './public.css?v=5', './public.js?v=5', './app.js?v=5', './assets/icon.svg', './assets/social-live.svg', './Boleta%202.jpeg', './boleta%201.jpeg'];
+const CACHE = `${CACHE_PREFIX}v11`;
+const SHELL = ['./', './index.html', './styles.css?v=6', './public.css?v=6', './public.js?v=6', './app.js?v=6', './ticket.js?v=6', './assets/icon.svg', './assets/social-live.svg', './Boleta%202.jpeg', './boleta%201.jpeg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => (key.startsWith(CACHE_PREFIX) || LEGACY_CACHES.includes(key)) && key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
+  event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key.startsWith(CACHE_PREFIX) && key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim()));
 });
 
 self.addEventListener('fetch', (event) => {

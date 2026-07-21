@@ -1,204 +1,149 @@
 # Live! Vive el Arte: Notas de implementación
 
-## Arquitectura
+## Diagnóstico real
 
-- `index.html`, `public.css` y `public.js` forman la portada pública y la consulta de boletas mediante `?boleta=<token>`.
-- `admin/index.html` es la consola privada. Carga `../app.js` y mantiene autenticación, personas, eventos, ingresos, beneficios y lector QR.
-- `app.js` carga `qrcodejs` al abrir una boleta y `html5-qrcode` únicamente al solicitar la cámara.
-- `manifest.webmanifest` y `sw.js` convierten la portada en una PWA básica. El worker solo cachea archivos estáticos públicos; nunca respuestas de Firestore ni enlaces de boletas.
+La presentación defectuosa no era un problema de Firebase, Firestore ni de los tokens. El diagnóstico encontró cuatro causas visuales y de despliegue:
 
-## Sistema de posiciones de granos (stamps)
+- Las posiciones anteriores de las estampas no correspondían a los centros reales de las imágenes. La boleta regular se documentó erróneamente como `1080×1440`, pero el archivo real mide `1086×1448`.
+- `app.js` y `public.js` mantenían dos implementaciones de marcado y actualización de boleta. El enlace público no contenía acciones ni barra de progreso.
+- La cortesía y la regular compartían parcialmente reglas internas aunque sus ilustraciones tienen orientaciones distintas.
+- El service worker cacheaba recursos por versión; los recursos `v=5` podían seguir siendo atendidos por un worker previo hasta recibir rutas nuevas.
 
-Las coordenadas de los granos de café se definen en un único objeto JavaScript `TICKET_STAMP_LAYOUTS` presente tanto en `public.js` como en `app.js`. Cada entrada contiene el centro del círculo como porcentaje del ancho y alto de la imagen:
+No se modificaron Firebase Authentication, Firestore Rules, colecciones, tokens, asistencia, beneficios ni generación de enlaces.
 
-```js
-const TICKET_STAMP_LAYOUTS = {
-  regular: [
-    { x: 49, y: 55, size: 15 },  // Fila 1, círculo 1
-    { x: 61, y: 55, size: 15 },  // Fila 1, círculo 2
-    { x: 73, y: 55, size: 15 },  // Fila 1, círculo 3
-    { x: 49, y: 67, size: 15 },  // Fila 2, círculo 1
-    { x: 61, y: 67, size: 15 },  // Fila 2, círculo 2
-  ],
-  courtesy: [
-    { x: 60, y: 55, size: 11 },  // Círculo 1
-    { x: 72, y: 55, size: 11 },  // Círculo 2
-    { x: 83, y: 55, size: 11 },  // Círculo 3
-  ],
-};
-```
+## Método de despliegue confirmado
 
-### Imágenes de boleta
+GitHub Pages se consultó mediante `gh api repos/JPCD-hub/live-vive-el-arte/pages`:
 
-- **Regular**: `Boleta 2.jpeg` — 1080×1440 (retrato, 3:4).
-- **Cortesía**: `boleta 1.jpeg` — 1536×1024 (paisaje, 3:2).
+- Repositorio: `JPCD-hub/live-vive-el-arte`.
+- Rama publicada: `main`.
+- Directorio publicado: `/` (raíz).
+- Tipo de build: `legacy` de GitHub Pages.
+- URL: `https://jpcd-hub.github.io/live-vive-el-arte/`.
 
-### Cómo se calcularon
+No existen `.github/workflows`, `docs/`, `dist/`, `build/`, rama `gh-pages` ni otro `service-worker.js`. El único worker publicado es `sw.js` en la raíz.
 
-Las posiciones se midieron inspeccionando las imágenes `Boleta 2.jpeg` (1080×1440, retrato) y `boleta 1.jpeg` (1536×1024, paisaje). Se identificaron los centros de los círculos impresos en cada imagen y se convirtieron a porcentajes del ancho/alto total.
+## Archivos cargados en producción
 
-### Cómo ajustar un marcador en el futuro
+La página pública carga:
 
-1. Activa el modo debug: `?debugStamps=1` (funciona tanto en la boleta pública como en el admin).
-2. Observa los bordes verdes y los números de índice sobre cada marcador.
-3. Ajusta los valores `x`, `y` y `size` en `TICKET_STAMP_LAYOUTS` en `public.js` y `app.js`.
-4. Los cambios se aplican sin recargar la página en la boleta pública (usa `onSnapshot`).
+- `styles.css?v=6`
+- `public.css?v=6`
+- `public.js?v=6`
+- `ticket.js?v=6` como import ES module de `public.js`
 
-### Estructura CSS
+La administración carga:
 
-Los marcadores usan propiedades CSS personalizadas inline:
-```html
-<span class="reference-stamp active"
-  style="--stamp-x: 49%; --stamp-y: 55%; --stamp-size: 15%;"
-  aria-label="Visita 1 registrada"
-  data-stamp-index="0"></span>
-```
+- `../styles.css?v=6`
+- `../app.js?v=6`
+- `../ticket.js?v=6` como import ES module de `app.js`
 
-```css
-.reference-stamp {
-  position: absolute;
-  left: var(--stamp-x);
-  top: var(--stamp-y);
-  width: var(--stamp-size);
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
-}
-```
+`styles.css` es la única fuente de estilos internos de la boleta. `public.css` contiene exclusivamente la portada, encabezado, contenedor exterior de enlace público, espaciado y footer.
 
-## Modo calibración (`?debugStamps=1`)
+## Dimensiones de imágenes
 
-Agrega `?debugStamps=1` a la URL de la boleta pública o del admin para:
+Las dimensiones se midieron programáticamente mediante `System.Drawing.Image.FromFile`:
 
-- Ver borde rojo en `.ticket-art`.
-- Ver bordes verdes en cada marcador.
-- Ver el índice del marcador y sus coordenadas.
-- Identificar si algún marcador está desplazado.
+| Archivo | Dimensiones naturales | Relación | Orientación |
+| --- | --- | --- | --- |
+| `Boleta 2.jpeg` | 1086×1448 | 3:4 | Vertical, regular |
+| `boleta 1.jpeg` | 1536×1024 | 3:2 | Horizontal, cortesía |
 
-Este modo es únicamente visual y no modifica Firestore.
+Las imágenes conservan su proporción con `width: 100%`, `max-width: 100%`, `height: auto` y `object-fit: contain`. No se usa `cover`, alturas fijas, `vh` para su ancho ni recortes en el componente de boleta.
 
-## Actualización en tiempo real
+## Coordenadas y máscaras finales
 
-### Boleta pública
+`ticket.js` contiene la única constante `TICKET_STAMP_LAYOUTS`. Los centros se midieron sobre los píxeles marrones de los granos impresos y se normalizaron con `center / naturalDimension * 100`.
 
-La boleta pública usa `onSnapshot()` sobre el documento del ticket en Firestore. Se implementan funciones separadas:
+### Regular: `Boleta 2.jpeg`
 
-- `updateTicketStamps()` — activa/desactiva granos sin reconstruir el HTML.
-- `updateTicketVisitText()` — actualiza el texto de progreso.
-- `updateTicketBenefits()` — solo regenera QR de beneficios si la lista de tokens cambió.
-- `updatePublicTicketRealtime()` — orquesta las actualizaciones incrementales.
+| Visita | Centro px | Coordenada % | Zona | Máscara | Grano |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 568.76, 845.11 | 52.37, 58.36 | 16% | 54% | 29% × 40% |
+| 2 | 763.49, 845.18 | 70.30, 58.37 | 16% | 54% | 29% × 40% |
+| 3 | 954.17, 845.22 | 87.86, 58.37 | 16% | 54% | 29% × 40% |
+| 4 | 567.57, 1060.51 | 52.26, 73.24 | 16% | 54% | 29% × 40% |
+| 5 | 762.85, 1060.10 | 70.24, 73.21 | 16% | 54% | 29% × 40% |
 
-Cuando solo cambia `visits`: no se reconstruye la boleta, no se reemplaza la imagen, no se regenera el QR de ingreso.
+### Cortesía: `boleta 1.jpeg`
 
-### Modal administrativo
+| Visita | Centro px | Coordenada % | Zona | Máscara | Grano |
+| --- | --- | --- | --- | --- | --- |
+| 1 | 919.78, 623.63 | 59.88, 60.90 | 12% | 56% | 30% × 41% |
+| 2 | 1134.11, 622.63 | 73.84, 60.80 | 12% | 56% | 30% × 41% |
+| 3 | 1346.78, 622.55 | 87.68, 60.80 | 12% | 56% | 30% × 41% |
 
-Cuando el listener de `tickets` recibe nuevos datos, `refreshDisplayedTicketFromState()` verifica si hay una boleta abierta y actualiza:
+Cada marcador recibe solamente estas propiedades CSS desde JavaScript: `--stamp-x`, `--stamp-y`, `--stamp-zone-size`, `--stamp-mask-size`, `--bean-width`, `--bean-height` y `--bean-rotation`. No hay coordenadas CSS, clases `.reference-stamp-1` a `.reference-stamp-5` ni variantes por media query.
 
-- Los granos (sin reconstruir el HTML).
-- El texto de visitas.
-- Anuncia el cambio a usuarios de lectores de pantalla mediante `aria-live`.
+La máscara `::before` y el grano activo `::after` usan el mismo centro (`left: 50%`, `top: 50%`, `translate(-50%, -50%)`). La máscara permanente usa `--ticket-cream`; el grano activo usa `--coffee-dark` y un gradiente CSS para su línea central.
 
-### Evitar regeneración de QR
+## Boleta regular
 
-Los QR solo se regeneran cuando cambia:
-- El token de la boleta.
-- La lista de beneficios (comparada por tokens).
+- Escritorio: `.ticket-regular` usa `grid-template-columns: minmax(300px, 44%) minmax(0, 1fr)` y `align-items: start`.
+- Móvil: cambia a una columna con `grid-template-columns: 1fr`.
+- La información inicia arriba: tipo, nombre, código, visitas, barra, QR y beneficios.
+- No tiene alturas fijas, `align-items: stretch`, `margin-top: auto` ni lógica que iguale artificialmente la altura de columnas.
 
-## Cómo probar con dos dispositivos
+## Boleta de cortesía
 
-1. Abre `/admin/` en el computador (ventana A).
-2. Abre `/?boleta=TOKEN` en el celular (ventana B).
-3. Registra un ingreso desde la ventana A.
-4. Verifica que el nuevo grano aparece en ambas ventanas sin recargar.
-5. Verifica que el QR no parpadea.
-6. Verifica que el modal administrativo permanece abierto.
+- `.ticket-courtesy` usa `display: block` en todos los tamaños.
+- La imagen horizontal ocupa todo el ancho antes de los datos.
+- En escritorio, `.ticket-courtesy .ticket-personal` es una grilla `minmax(0, 1fr) auto` para datos y QR.
+- En móvil, los datos y QR vuelven a una columna.
 
-## Configuración pública
+## Modal administrativo
 
-Edita `PUBLIC_CONFIG` en `public.js` para añadir solo canales públicos verificados:
+- `.ticket-modal`: `width: min(1050px, calc(100vw - 32px))`, `max-height: min(92dvh, 900px)`, scroll vertical interno y sin scroll horizontal.
+- En móvil ocupa el viewport con `100dvh`.
+- El botón de cierre usa `position: sticky` para permanecer disponible durante el scroll.
+- Las acciones usan `flex-wrap`, `gap: 10px`, mínimo de 150px y altura mínima de 44px; en móvil ocupan la fila completa sin deformarse.
 
-```js
-const PUBLIC_CONFIG = {
-  address: '',
-  whatsappUrl: '',
-  instagramUrl: '',
-  mapsUrl: '',
-};
-```
+## Enlace público
 
-Los botones se ocultan mientras su valor esté vacío. No se incluyen números, direcciones ni cuentas inventadas.
+- La sección directa usa `.public-ticket-container` con `width: min(1120px, calc(100% - 32px))`.
+- Al abrir `?boleta=TOKEN`, el contenido principal no conserva la altura mínima de la portada, el encabezado se compacta y el footer sigue al contenido real.
+- El enlace ahora incluye botones de compartir y copiar debajo del componente compartido.
 
-La imagen social está en `assets/social-live.svg`. El icono PWA y favicon están en `assets/icon.svg`.
+## Tiempo real y QR
 
-## Eventos públicos
+`onSnapshot()` continúa activo para la página pública y para los listeners administrativos existentes. Ambos usan la función compartida `updateTicketRealtimeState(container, ticket)` de `ticket.js`:
 
-La portada lee la colección `events`, que contiene información pública de programación:
+- Activa o desactiva las estampas.
+- Actualiza texto, barra y contador de progreso.
+- Conserva imagen, QR de ingreso, scroll y modal cuando solo cambian visitas.
+- Indica al llamador si cambió la lista de beneficios; solo entonces se reemplazan los QR de beneficio.
 
-- `name` y `date` son obligatorios.
-- `description`, `time`, `location` e `imageUrl` son opcionales.
-- `status` puede ser `published`, `draft` o `cancelled`. Solo `published` puede leerse desde la portada.
-- Los eventos pasados no aparecen en la agenda pública.
-- Al iniciar la consola con una cuenta administradora, los eventos heredados sin `status` se migran a `published`.
+El QR usa `.qr-container { flex: 0 0 auto }` y `.qr { width: clamp(112px, 14vw, 150px); aspect-ratio: 1 }`. Tras generar un QR se elimina el `img` fallback añadido después de `canvas`, evitando dos representaciones visibles.
 
-## Edición de personas
+## Modo de calibración
 
-Desde la lista de comunidad, selecciona **Editar**. Se pueden actualizar nombre, correo, teléfono y nota. El tipo de boleta se mantiene. Si cambia el nombre, también se actualiza el nombre visible en su boleta pública.
+Agrega `?debugStamps=1` al enlace público o a `/admin/`:
 
-## Regenerar una boleta
+- Contorno de `.ticket-art`.
+- Nombre de layout.
+- Tamaño natural y renderizado de la imagen.
+- Cruz del centro de cada posición.
+- Número y coordenadas normalizadas.
+- Contorno verde de zona, cyan de máscara y magenta de grano activo.
 
-1. Entra a `admin/` con una cuenta autorizada.
-2. En la persona correspondiente selecciona **Regenerar enlace** o abre la boleta y selecciona **Regenerar boleta**.
-3. Confirma la acción.
-4. Copia o comparte el nuevo enlace.
+No modifica Firestore ni datos de boleta.
 
-La regeneración crea un token nuevo, invalida la URL anterior, conserva las visitas y rota los QR de beneficios aún disponibles. Se limita a 12 beneficios por persona desde el navegador.
+## Caché y producción
 
-## Beneficios
+- `sw.js` cache actual: `live-vive-el-arte-public-v11`.
+- Al activarse elimina cualquier caché anterior con el mismo prefijo y ejecuta `clients.claim()`.
+- Navegaciones: network-first con fallback a `index.html`.
+- CSS y JavaScript: stale-while-revalidate; las URLs `v=6` evitan coincidencias con recursos previos.
+- Las navegaciones con `?boleta=` no se cachean; Firestore, Firebase Auth, datos personales y rutas administrativas no se almacenan en el worker.
 
-La regla actual es cinco asistencias por ciclo para boleta regular. El beneficio se genera para el siguiente evento disponible. El QR rojo registra el uso del beneficio. Las cortesías tienen 3 ingresos sin beneficios.
+## Pruebas realizadas
 
-## Lector QR
+- Sintaxis: `node --check ticket.js`, `node --check public.js`, `node --check app.js`.
+- Producción antes del cambio: se comprobó que GitHub Pages responde `main/root` y sirve los recursos versionados.
+- Medición programática de ambas imágenes y detección de centros basada en los píxeles marrones de los granos.
+- Capturas headless de escritorio a 1366px con boleta regular y cortesía, incluyendo modo debug. Se verificó visualmente proporción, máscara, centro, QR cuadrado, acciones y layout horizontal de cortesía.
+- Validación estática de las reglas móviles para 320, 360, 390, 430, 568, 800, 768 y 1024px; regular pasa a una columna bajo 820px y cortesía conserva `display: block`.
 
-El lector se carga al pulsar **Escanear QR**. Requiere HTTPS y permiso de cámara. Si la cámara no está disponible, usa **Código o enlace de boleta** en el ingreso manual.
+## Limitaciones reales
 
-La cámara se detiene al pulsar detener, ocultar la pestaña, abandonar la página o cerrar sesión.
-
-## Firebase y privacidad
-
-- `people`, `checkins`, `benefits` y `tickets` requieren una cuenta cuyo UID exista en `admins/<uid>`.
-- Las boletas públicas se consultan solo por un token aleatorio de 43 caracteres.
-- Configura Firebase App Check, alertas de presupuesto y dominios autorizados antes de un evento grande.
-
-## Despliegue
-
-GitHub Pages sirve la rama `main` desde la raíz. Todas las rutas usan enlaces relativos bajo `https://jpcd-hub.github.io/live-vive-el-arte/`.
-
-Publica las reglas con:
-
-```powershell
-firebase deploy --only firestore:rules --project ticket-service-c2eac
-```
-
-Al cambiar recursos cacheados, incrementa `CACHE` y el listado `SHELL` en `sw.js`; incrementa los parámetros de versión de `public.css`, `public.js`, `styles.css` o `app.js` cuando corresponda.
-
-## Versión actual
-
-- `sw.js` cache: `v9`
-- `styles.css`: `v35`
-- `public.css`: `v11`
-- `public.js`: `v6`
-- `app.js`: `v17`
-
-## Arquitectura CSS unificada
-
-`styles.css` es la fuente única de verdad para el componente de boleta (`.ticket`, `.ticket-art`, `.reference-stamp`, `.ticket-personal`, `.ticket-codes`, `.qr`, etc.). `public.css` solo contiene estilos de layout de la página pública (`.ticket-page`, `.ticket-access`, etc.). `index.html` carga ambos: `styles.css` primero, `public.css` después.
-
-## Archivos modificados
-
-- `app.js` — Layout unificado, actualización en tiempo real del modal, modo debug, accesibilidad.
-- `public.js` — Layout unificado usando clases admin (`.ticket`, `.reference-stamp`, `.ticket-personal`), actualización incremental sin reconstrucción completa, modo debug.
-- `public.css` — Solo layout de página pública; componentes de boleta removidos (ahora están en `styles.css`).
-- `styles.css` — Fuente única de verdad para componente de boleta; grid regular sin `45vh`, modal ampliado a 1040px, botones con `flex-wrap`, cortesía con imagen full-width.
-- `admin/index.html` — Región `aria-live`, versión actualizada.
-- `index.html` — Carga `styles.css?v=35` antes de `public.css?v=11`.
-- `sw.js` — Cache incrementado a v9 con stale-while-revalidate para CSS/JS.
-- `IMPLEMENTATION_NOTES.md` — Esta documentación.
+La consola no contiene credenciales de administrador ni un token público de boleta utilizable, por lo que no es posible desde este entorno ejecutar el flujo autenticado real de registro de asistencia ni una captura de Firestore de cada estado 0–5 / 0–3. La implementación mantiene esos listeners y se validó que los cambios de visita no reconstruyen el componente. Tras el despliegue se verifican los archivos `v=6` publicados antes de declarar producción actualizada.

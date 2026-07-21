@@ -1,5 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { collection, doc, getFirestore, onSnapshot, query, where } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { renderTicketMarkup, ticketBenefitMarkup, ticketBenefitTokens, updateTicketDebug, updateTicketRealtimeState } from './ticket.js?v=6';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBK9l6lVxoAfgiLmLmK2qJCIVwFc0xNfqI',
@@ -24,22 +25,7 @@ const PUBLIC_CONFIG = {
 const $ = (selector) => document.querySelector(selector);
 let qrLibraryPromise;
 let installPrompt;
-const TICKET_STAMP_LAYOUTS = {
-  regular: [
-    { x: 49, y: 55, zoneSize: 15, maskSize: 70, beanWidth: 32, beanHeight: 48 },
-    { x: 61, y: 55, zoneSize: 15, maskSize: 70, beanWidth: 32, beanHeight: 48 },
-    { x: 73, y: 55, zoneSize: 15, maskSize: 70, beanWidth: 32, beanHeight: 48 },
-    { x: 49, y: 67, zoneSize: 15, maskSize: 70, beanWidth: 32, beanHeight: 48 },
-    { x: 61, y: 67, zoneSize: 15, maskSize: 70, beanWidth: 32, beanHeight: 48 },
-  ],
-  courtesy: [
-    { x: 60, y: 55, zoneSize: 11, maskSize: 70, beanWidth: 32, beanHeight: 48 },
-    { x: 72, y: 55, zoneSize: 11, maskSize: 70, beanWidth: 32, beanHeight: 48 },
-    { x: 83, y: 55, zoneSize: 11, maskSize: 70, beanWidth: 32, beanHeight: 48 },
-  ],
-};
 let previousPublicTicketState = null;
-let publicTicketRenderId = 0;
 
 function create(tag, text, className) {
   const node = document.createElement(tag);
@@ -98,7 +84,9 @@ function loadQrLibrary() {
 function appendQr(container, payload, color = '#003c2d') {
   loadQrLibrary().then((QRCode) => {
     if (!container.isConnected) return;
-    new QRCode(container, { text: JSON.stringify(payload), width: 116, height: 116, colorDark: color, colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    const size = Math.max(70, Math.round(container.getBoundingClientRect().width));
+    new QRCode(container, { text: JSON.stringify(payload), width: size, height: size, colorDark: color, colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+    container.querySelectorAll('canvas + img').forEach((fallback) => fallback.remove());
   }).catch(() => {
     container.textContent = 'QR no disponible. Usa el enlace personal.';
   });
@@ -142,114 +130,55 @@ function renderPublicEvents(events) {
   });
 }
 
-function ticketProgress(ticket) {
-  const visits = Number(ticket.visits) || 0;
-  const courtesy = ticket.ticketType === 'courtesy';
-  const required = courtesy ? 3 : 5;
-  const progress = courtesy ? Math.min(visits, required) : visits % required;
-  return { visits, courtesy, required, progress };
-}
-
 function renderTicket(ticket) {
   const container = $('#public-ticket-content');
-  const { visits, courtesy, required, progress } = ticketProgress(ticket);
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
-  const layout = courtesy ? TICKET_STAMP_LAYOUTS.courtesy : TICKET_STAMP_LAYOUTS.regular;
-  const renderId = ++publicTicketRenderId;
-  const statusStamps = layout.map((stamp, index) => `<span class="reference-stamp${index < progress ? ' active' : ''}" style="--stamp-x: ${stamp.x}%; --stamp-y: ${stamp.y}%; --stamp-zone-size: ${stamp.zoneSize}%; --stamp-mask-size: ${stamp.maskSize}%; --stamp-bean-width: ${stamp.beanWidth}%; --stamp-bean-height: ${stamp.beanHeight}%;" aria-label="Visita ${index + 1}${index < progress ? ' registrada' : ' pendiente'}" data-stamp-index="${index}"></span>`).join('');
-  const description = courtesy
-    ? visits >= required
-      ? 'Las 3 cortesías ya fueron utilizadas. Esta boleta no admite más ingresos.'
-      : `Entrada de cortesía: ${progress} de ${required} miércoles utilizados.`
-    : `${progress} de ${required} asistencias en el ciclo actual · ${visits} en total.`;
-  const benefitMarkup = benefits.map((benefit, index) => `<div class="ticket-qr-item reward-qr"><span>BENEFICIO · ${benefit.eventName}</span><div id="benefit-qr-${renderId}-${index}" class="qr" aria-label="QR de beneficio para ${benefit.eventName}"></div></div>`).join('');
-  const upgradeNote = courtesy && visits >= required ? '<p class="ticket-upgrade-note">¿Quieres seguir asistiendo? Solicita al equipo Live! tu nueva boleta regular.</p>' : '';
-  const article = create('article', undefined, `ticket ticket-reference ${courtesy ? 'ticket-courtesy' : 'ticket-regular'}`);
-  article.innerHTML = `<div class="ticket-art"><img src="${courtesy ? 'boleta%201.jpeg' : 'Boleta%202.jpeg'}" width="${courtesy ? 1536 : 1080}" height="${courtesy ? 1024 : 1440}" alt="Boleta ${courtesy ? 'de cortesía' : 'regular'} Vive el Arte" />${statusStamps}</div><section class="ticket-personal"><div><p class="ticket-label">BOLETA DIGITAL · ${courtesy ? 'CORTESÍA' : 'REGULAR'}</p><p class="ticket-person">${ticket.name || 'Boleta Live!'}</p><span class="ticket-code">CÓDIGO DE COMUNIDAD: ${ticket.id.slice(0, 8).toUpperCase()}</span><p class="ticket-visits">${description}</p>${upgradeNote}</div><div class="ticket-codes"><div class="ticket-qr-item"><span>INGRESO</span><div id="ticket-qr-${renderId}" class="qr" aria-label="Código QR de ${ticket.name || 'Boleta'}"></div></div>${benefitMarkup}</div></section>`;
-  article.setAttribute('data-benefit-tokens', benefits.map((b) => b.token).join(','));
-  article.setAttribute('data-ticket-token', ticket.id);
-  container.replaceChildren(article);
+  container.innerHTML = `${renderTicketMarkup(ticket)}<div class="ticket-actions"><button class="button button-primary" type="button" data-public-share>Compartir enlace</button><button class="button button-secondary" type="button" data-public-copy>Copiar enlace</button></div>`;
+  const article = container.querySelector('.ticket');
+  container.querySelector('[data-public-share]').addEventListener('click', () => shareTicket(ticket));
+  container.querySelector('[data-public-copy]').addEventListener('click', () => copyTicketLink(ticket));
   loadQrLibrary().then((QRCode) => {
     requestAnimationFrame(() => {
       const renderQr = (element, data, color) => {
         if (!element) return;
         const size = Math.max(70, Math.round(element.getBoundingClientRect().width));
         new QRCode(element, { text: JSON.stringify(data), width: size, height: size, colorDark: color || '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+        element.querySelectorAll('canvas + img').forEach((fallback) => fallback.remove());
       };
-      renderQr($(`#ticket-qr-${renderId}`), { app: APP_NAME, ticketToken: ticket.id });
-      benefits.forEach((benefit, index) => renderQr($(`#benefit-qr-${renderId}-${index}`), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918'));
+      renderQr(article.querySelector('[data-entry-qr]'), { app: APP_NAME, ticketToken: ticket.id });
+      benefits.forEach((benefit) => renderQr(article.querySelector(`[data-benefit-qr="${benefit.token}"]`), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918'));
     });
   }).catch((error) => {
     console.error(error);
-    const entryQr = $(`#ticket-qr-${renderId}`);
+    const entryQr = article.querySelector('[data-entry-qr]');
     if (entryQr) entryQr.textContent = 'No se pudo cargar el QR.';
   });
-  previousPublicTicketState = { ticketToken: ticket.id, visits: ticket.visits, benefits: benefits.map((b) => b.token).join(','), required, courtesy };
-}
-
-function updateTicketStamps(container, ticket) {
-  const { courtesy, required, progress } = ticketProgress(ticket);
-  const stamps = container.querySelectorAll('.reference-stamp');
-  stamps.forEach((stamp, index) => {
-    const wasActive = stamp.classList.contains('active');
-    const shouldBeActive = index < progress;
-    if (shouldBeActive && !wasActive) {
-      stamp.classList.add('active', 'animate-in');
-      stamp.setAttribute('aria-label', `Visita ${index + 1} registrada`);
-      stamp.addEventListener('animationend', () => stamp.classList.remove('animate-in'), { once: true });
-    } else if (!shouldBeActive && wasActive) {
-      stamp.classList.remove('active');
-      stamp.setAttribute('aria-label', `Visita ${index + 1} pendiente`);
-    }
-  });
-}
-
-function updateTicketVisitText(container, ticket) {
-  const { visits, courtesy, required, progress } = ticketProgress(ticket);
-  const visitsEl = container.querySelector('.ticket-visits');
-  if (visitsEl) {
-    visitsEl.textContent = courtesy
-      ? (visits >= required ? 'Las 3 cortesías ya fueron utilizadas. Esta boleta no admite más ingresos.' : `Entrada de cortesía: ${progress} de ${required} miércoles utilizados.`)
-      : `${progress} de ${required} asistencias en el ciclo actual · ${visits} en total.`;
-  }
+  updateTicketDebug(container);
+  previousPublicTicketState = { ticketToken: ticket.id, visits: ticket.visits, benefits: ticketBenefitTokens(ticket) };
 }
 
 function updateTicketBenefits(container, ticket) {
   const benefits = Array.isArray(ticket.benefits) ? ticket.benefits : [];
-  const currentTokens = benefits.map((b) => b.token).join(',');
-  const renderedTokens = container.getAttribute('data-benefit-tokens') || '';
-  if (currentTokens !== renderedTokens) {
-    container.setAttribute('data-benefit-tokens', currentTokens);
-    const codes = container.querySelector('.ticket-codes');
-    if (!codes) return;
-    codes.querySelectorAll('.ticket-qr-item.reward-qr').forEach((el) => el.remove());
-    benefits.forEach((benefit, index) => {
-      const benefitCard = create('div', undefined, 'ticket-qr-item reward-qr');
-      benefitCard.append(create('span', `BENEFICIO · ${benefit.eventName}`));
-      const benefitQr = create('div', undefined, 'qr');
-      benefitCard.append(benefitQr);
-      codes.append(benefitCard);
-      appendQr(benefitQr, { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918');
-    });
-  }
+  const codes = container.querySelector('.ticket-codes');
+  if (!codes) return;
+  codes.querySelectorAll('[data-benefit-token]').forEach((el) => el.remove());
+  benefits.forEach((benefit) => {
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = ticketBenefitMarkup(benefit);
+    const card = wrapper.firstElementChild;
+    codes.append(card);
+    appendQr(card.querySelector('[data-benefit-qr]'), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918');
+  });
 }
 
 function updatePublicTicketRealtime(ticket) {
   const container = $('#public-ticket-content');
   const article = container.querySelector('.ticket');
   if (!article) { renderTicket(ticket); return; }
-  const prev = previousPublicTicketState;
-  const currentBenefitTokens = (Array.isArray(ticket.benefits) ? ticket.benefits : []).map((b) => b.token).join(',');
-  if (prev && prev.ticketToken === ticket.id && prev.visits !== ticket.visits) {
-    updateTicketStamps(article, ticket);
-    updateTicketVisitText(article, ticket);
-  }
-  if (prev && prev.ticketToken === ticket.id && prev.benefits !== currentBenefitTokens) {
-    updateTicketBenefits(article, ticket);
-  }
-  if (!prev || prev.ticketToken !== ticket.id) renderTicket(ticket);
-  const { required, courtesy } = ticketProgress(ticket);
-  previousPublicTicketState = { ticketToken: ticket.id, visits: ticket.visits, benefits: currentBenefitTokens, required, courtesy };
+  if (previousPublicTicketState?.ticketToken !== ticket.id) { renderTicket(ticket); return; }
+  const { benefitsChanged } = updateTicketRealtimeState(container, ticket);
+  if (benefitsChanged) updateTicketBenefits(container, ticket);
+  previousPublicTicketState = { ticketToken: ticket.id, visits: ticket.visits, benefits: ticketBenefitTokens(ticket) };
 }
 
 async function copyTicketLink(ticket) {
