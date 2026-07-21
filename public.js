@@ -239,9 +239,13 @@ function renderContact() {
 function initInstallPrompt() {
   const button = $('#install-app');
   const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true || document.referrer.startsWith('android-app://');
   const iosHelp = $('#ios-install-help');
   const closeIosHelp = $('#close-ios-install-help');
+  if (standalone) {
+    document.documentElement.dataset.appMode = 'standalone';
+    return;
+  }
   if (ios && !standalone) {
     const safari = /Safari/i.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(navigator.userAgent);
     button.hidden = false;
@@ -259,10 +263,10 @@ function initInstallPrompt() {
     });
     return;
   }
-  if (localStorage.getItem('live-install-dismissed')) return;
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();
     installPrompt = event;
+    button.textContent = 'Instalar aplicación';
     button.hidden = false;
   });
   button.addEventListener('click', async () => {
@@ -271,9 +275,11 @@ function initInstallPrompt() {
     await installPrompt.userChoice;
     installPrompt = null;
     button.hidden = true;
-    localStorage.setItem('live-install-dismissed', '1');
   });
-  window.addEventListener('appinstalled', () => { button.hidden = true; });
+  window.addEventListener('appinstalled', () => {
+    document.documentElement.dataset.appMode = 'standalone';
+    button.hidden = true;
+  });
 }
 
 function registerServiceWorker() {

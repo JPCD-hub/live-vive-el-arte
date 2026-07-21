@@ -1,6 +1,6 @@
 const CACHE_PREFIX = 'live-vive-el-arte-public-';
-const CACHE = `${CACHE_PREFIX}v22`;
-const SHELL = ['./', './index.html', './styles.css?v=11', './public.css?v=10', './public.js?v=11', './app.js?v=14', './ticket.js?v=9', './assets/app-icon-192.png', './assets/app-icon-512.png', './assets/app-icon-maskable-512.png', './assets/apple-touch-icon.png', './assets/splash-logo.png', './assets/social-live.svg', './Boleta%202.jpeg', './boleta%201.jpeg'];
+const CACHE = `${CACHE_PREFIX}v23`;
+const SHELL = ['./', './index.html', './styles.css?v=11', './public.css?v=10', './public.js?v=12', './app.js?v=14', './ticket.js?v=9', './assets/app-icon-192.png', './assets/app-icon-512.png', './assets/app-icon-maskable-512.png', './assets/apple-touch-icon.png', './assets/splash-logo.png', './assets/social-live.svg', './Boleta%202.jpeg', './boleta%201.jpeg'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));
