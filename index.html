@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#003c2d" />
     <meta name="color-scheme" content="light" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="description" content="Participa en los eventos culturales de Live!, registra tus visitas con tu boleta digital y desbloquea beneficios por volver." />
     <meta name="robots" content="index,follow" />
     <link rel="canonical" href="https://jpcd-hub.github.io/live-vive-el-arte/" />
@@ -23,7 +25,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <title>Live! Vive el Arte | Eventos y beneficios culturales</title>
     <link rel="stylesheet" href="styles.css?v=9" />
-    <link rel="stylesheet" href="public.css?v=9" />
+    <link rel="stylesheet" href="public.css?v=10" />
     <script type="application/ld+json">
       {"@context":"https://schema.org","@type":"Organization","name":"Live! Vive el Arte","url":"https://jpcd-hub.github.io/live-vive-el-arte/"}
     </script>
@@ -102,6 +104,7 @@
       <p>© <span id="current-year"></span> Live! Vive el Arte. Esta boleta es personal y su enlace debe cuidarse.</p>
     </footer>
     <button id="install-app" class="install-button" type="button" hidden>Instalar aplicación</button>
-    <script type="module" src="public.js?v=10"></script>
+    <dialog id="ios-install-help" class="ios-install-modal" aria-labelledby="ios-install-title"><div><p class="section-kicker">LIVE! VIVE EL ARTE</p><h2 id="ios-install-title">Instala la aplicación</h2><p id="ios-install-copy">En Safari, toca Compartir y selecciona “Añadir a pantalla de inicio”. Después confirma con “Añadir”.</p><button id="close-ios-install-help" class="button button-primary" type="button">Entendido</button></div></dialog>
+    <script type="module" src="public.js?v=11"></script>
   </body>
 </html>

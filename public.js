@@ -238,6 +238,27 @@ function renderContact() {
 
 function initInstallPrompt() {
   const button = $('#install-app');
+  const ios = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const iosHelp = $('#ios-install-help');
+  const closeIosHelp = $('#close-ios-install-help');
+  if (ios && !standalone) {
+    const safari = /Safari/i.test(navigator.userAgent) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(navigator.userAgent);
+    button.hidden = false;
+    button.textContent = safari ? 'Instalar en iPhone' : 'Abrir en Safari para instalar';
+    $('#ios-install-copy').textContent = safari
+      ? 'Toca Compartir y selecciona “Añadir a pantalla de inicio”. Después confirma con “Añadir”.'
+      : 'Abre esta página en Safari. Luego toca Compartir y selecciona “Añadir a pantalla de inicio”.';
+    button.addEventListener('click', () => {
+      if (typeof iosHelp.showModal === 'function') iosHelp.showModal();
+      else iosHelp.hidden = false;
+    });
+    closeIosHelp.addEventListener('click', () => {
+      if (typeof iosHelp.close === 'function') iosHelp.close();
+      else iosHelp.hidden = true;
+    });
+    return;
+  }
   if (localStorage.getItem('live-install-dismissed')) return;
   window.addEventListener('beforeinstallprompt', (event) => {
     event.preventDefault();

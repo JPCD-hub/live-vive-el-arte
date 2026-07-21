@@ -110,6 +110,11 @@ h3 { color: var(--green); font-size: 20px; line-height: 1.05; }
 .footer-links a { color: var(--cream); }
 .site-footer p { grid-column: 1 / -1; margin: 0; color: #c7d6ce; font-size: 12px; }
 .install-button { position: fixed; z-index: 10; right: 16px; bottom: 16px; min-height: 44px; border: 1px solid var(--cream); padding: 10px 14px; color: var(--cream); background: var(--green); font-weight: 700; }
+.ios-install-modal { width: min(420px, calc(100% - 32px)); margin: auto; border: 0; padding: 0; color: var(--ink); background: var(--paper); box-shadow: 0 18px 50px rgba(0, 27, 20, .35); }
+.ios-install-modal::backdrop { background: rgba(0, 27, 20, .66); }
+.ios-install-modal > div { padding: 28px; }
+.ios-install-modal h2 { font-size: 32px; }
+.ios-install-modal p:not(.section-kicker) { margin: 16px 0 22px; color: var(--muted); font-size: 16px; line-height: 1.55; }
 .ticket-mode .site-header nav, .ticket-mode .site-footer .footer-links { display: none; }
 .ticket-mode main { min-height: 0; }
 .ticket-mode .site-header { padding: 14px 0; }
@@ -136,10 +141,10 @@ h3 { color: var(--green); font-size: 20px; line-height: 1.05; }
   .public-hero, .content-section, .ticket-access, .benefits-section, .ticket-page { width: min(100% - 28px, var(--content)); }
   .hero-actions .button, .ticket-access-controls .button { width: 100%; }
   .ticket-access-controls { display: grid; }
+  .ios-install-modal { width: calc(100% - 24px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
-
