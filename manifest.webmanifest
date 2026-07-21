@@ -1,7 +1,7 @@
 {
   "id": "./",
-  "name": "Live! Vive el Arte",
-  "short_name": "Live!",
+  "name": "Vive el Arte",
+  "short_name": "Vive el Arte",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
