@@ -123,6 +123,7 @@ function renderPublicEvents(events) {
     const article = create('article', undefined, 'public-event-card');
     const imageUrl = eventImageSource(event.imageUrl);
     if (imageUrl) {
+      const flyer = create('div', undefined, 'event-flyer');
       const image = document.createElement('img');
       image.src = imageUrl;
       image.alt = `Imagen del evento ${event.name || 'Live!'}`;
@@ -131,7 +132,9 @@ function renderPublicEvents(events) {
       image.fetchPriority = 'low';
       image.width = 1200;
       image.height = 1500;
-      article.append(image);
+      flyer.append(image);
+      article.classList.add('public-event-card--with-flyer');
+      article.append(flyer);
     }
     const time = create('time', formatDate(event.date));
     if (event.date) time.dateTime = event.date;
