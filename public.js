@@ -100,12 +100,18 @@ function loadQrLibrary() {
 function appendQr(container, payload, color = '#003c2d') {
   loadQrLibrary().then((QRCode) => {
     if (!container.isConnected) return;
-    const size = Math.max(70, Math.round(container.getBoundingClientRect().width));
+    const size = qrRenderSize(container);
     new QRCode(container, { text: JSON.stringify(payload), width: size, height: size, colorDark: color, colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
     container.querySelectorAll('canvas + img').forEach((fallback) => fallback.remove());
   }).catch(() => {
     container.textContent = 'QR no disponible. Usa el enlace personal.';
   });
+}
+
+function qrRenderSize(element) {
+  const style = window.getComputedStyle(element);
+  const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+  return Math.max(120, Math.floor(element.clientWidth - padding));
 }
 
 function renderPublicEvents(events) {
@@ -156,12 +162,12 @@ function renderTicket(ticket) {
     requestAnimationFrame(() => {
       const renderQr = (element, data, color) => {
         if (!element) return;
-        const size = Math.max(70, Math.round(element.getBoundingClientRect().width));
+        const size = qrRenderSize(element);
         new QRCode(element, { text: JSON.stringify(data), width: size, height: size, colorDark: color || '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
         element.querySelectorAll('canvas + img').forEach((fallback) => fallback.remove());
       };
       renderQr(article.querySelector('[data-entry-qr]'), { app: APP_NAME, ticketToken: ticket.id });
-      benefits.forEach((benefit) => renderQr(article.querySelector(`[data-benefit-qr="${benefit.token}"]`), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918'));
+      benefits.forEach((benefit) => renderQr(article.querySelector(`[data-benefit-qr="${benefit.token}"]`), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }));
     });
   }).catch((error) => {
     console.error(error);
@@ -182,7 +188,7 @@ function updateTicketBenefits(container, ticket) {
     wrapper.innerHTML = ticketBenefitMarkup(benefit);
     const card = wrapper.firstElementChild;
     codes.append(card);
-    appendQr(card.querySelector('[data-benefit-qr]'), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918');
+    appendQr(card.querySelector('[data-benefit-qr]'), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token });
   });
 }
 

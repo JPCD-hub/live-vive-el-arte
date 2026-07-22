@@ -1078,10 +1078,10 @@ textarea:focus-visible {
 
 .qr {
   display: grid;
-  width: clamp(112px, 14vw, 150px);
+  width: clamp(164px, 18vw, 224px);
   min-height: 0;
   aspect-ratio: 1;
-  padding: 7px;
+  padding: 12px;
   place-items: center;
   background: #fff;
 }
@@ -1312,7 +1312,7 @@ textarea:focus-visible {
 
   .ticket-regular .ticket-codes {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 10px;
     margin-top: 14px;
     padding-top: 12px;
@@ -1334,7 +1334,7 @@ textarea:focus-visible {
   /* Courtesy ticket: display:block already makes it stack vertically */
   .ticket-courtesy .ticket-art > img { width: 100%; height: auto; object-fit: contain; }
   .ticket-courtesy .ticket-personal { grid-template-columns: 1fr; }
-  .ticket-courtesy .ticket-codes { display: grid; grid-template-columns: minmax(130px, 160px); justify-content: center; }
+  .ticket-courtesy .ticket-codes { display: grid; grid-template-columns: minmax(150px, 176px); justify-content: center; }
   .ticket-courtesy .ticket-qr-item { justify-items: center; padding: 10px; border: 1px solid #d8cdb9; background: #fff; }
 
   .ticket-personal {
@@ -1345,7 +1345,7 @@ textarea:focus-visible {
 
   .ticket-person { font-size: 20px; }
   .ticket-visits { overflow-wrap: anywhere; font-size: 12px; }
-  .qr { width: clamp(112px, 34vw, 150px); justify-self: center; }
+  .qr { width: min(176px, 100%); justify-self: center; }
   .ticket-codes { justify-content: center; gap: 10px; }
   .ticket-actions .button { width: 100%; }
 
@@ -1375,7 +1375,7 @@ textarea:focus-visible {
   .ticket-person { font-size: 18px; }
   .ticket-regular .ticket-codes { gap: 8px; }
   .ticket-personal { padding: 12px 14px; }
-  .qr { width: min(112px, 100%); }
+  .qr { width: min(156px, 100%); padding: 10px; }
 }
 
 /* ==========================================

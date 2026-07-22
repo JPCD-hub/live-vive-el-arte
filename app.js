@@ -81,6 +81,11 @@ function formatEventTime(value) {
   const hour = Number(match[1]);
   return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
 }
+function qrRenderSize(element) {
+  const style = window.getComputedStyle(element);
+  const padding = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+  return Math.max(120, Math.floor(element.clientWidth - padding));
+}
 function parseEventTime(value) {
   const normalized = value.trim().toUpperCase().replace(/\./g, '').replace(/\s+/g, '');
   if (!normalized) return '';
@@ -558,12 +563,12 @@ function renderTicket(container, ticket) {
     requestAnimationFrame(() => {
       const renderQr = (element, data, color = '#003c2d') => {
         if (!element) return;
-        const size = Math.max(70, Math.round(element.getBoundingClientRect().width));
+        const size = qrRenderSize(element);
         new QRCode(element, { text: JSON.stringify(data), width: size, height: size, colorDark: color, colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
         element.querySelectorAll('canvas + img').forEach((fallback) => fallback.remove());
       };
       renderQr(article.querySelector('[data-entry-qr]'), { app: APP_NAME, ticketToken: ticket.id });
-      benefits.forEach((benefit) => renderQr(article.querySelector(`[data-benefit-qr="${benefit.token}"]`), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }, '#d41918'));
+      benefits.forEach((benefit) => renderQr(article.querySelector(`[data-benefit-qr="${benefit.token}"]`), { app: APP_NAME, type: 'benefit', benefitToken: benefit.token }));
     });
   }).catch((error) => {
     console.error(error);
@@ -602,8 +607,8 @@ function updateTicketBenefitsAdmin(container, ticket) {
     codes.append(card);
     loadLibrary('https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js', 'QRCode').then((QRCode) => {
       const element = card.querySelector('[data-benefit-qr]');
-      const size = Math.max(70, Math.round(element.getBoundingClientRect().width));
-      new QRCode(element, { text: JSON.stringify({ app: APP_NAME, type: 'benefit', benefitToken: benefit.token }), width: size, height: size, colorDark: '#d41918', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
+      const size = qrRenderSize(element);
+      new QRCode(element, { text: JSON.stringify({ app: APP_NAME, type: 'benefit', benefitToken: benefit.token }), width: size, height: size, colorDark: '#003c2d', colorLight: '#ffffff', correctLevel: QRCode.CorrectLevel.M });
       element.querySelectorAll('canvas + img').forEach((fallback) => fallback.remove());
     });
   });
