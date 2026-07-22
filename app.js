@@ -21,7 +21,6 @@ import {
   where,
   writeBatch,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-import { getDownloadURL, getStorage, ref as storageRef, uploadBytes } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 import { renderTicketMarkup, ticketBenefitMarkup, ticketState, updateTicketDebug, updateTicketRealtimeState } from './ticket.js?v=9';
 
 const firebaseConfig = {
@@ -36,11 +35,11 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
 const BENEFIT_VISITS = 5;
 const APP_NAME = 'live-vive-el-arte';
 const EVENT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
-const EVENT_IMAGE_MAX_DIMENSION = 1600;
+const EVENT_IMAGE_MAX_DIMENSION = 1000;
+const EVENT_IMAGE_MAX_EMBEDDED_BYTES = 500 * 1024;
 const state = { people: [], events: [], checkins: [], benefits: [], tickets: new Map() };
 const $ = (selector) => document.querySelector(selector);
 let scanner = null;
@@ -137,7 +136,7 @@ async function optimizeEventImage(file) {
       canvas.toBlob((blob) => {
         if (!blob) return reject(new Error('No se pudo optimizar el flyer.'));
         resolve(new File([blob], 'flyer.webp', { type: 'image/webp' }));
-      }, 'image/webp', 0.82);
+      }, 'image/webp', 0.72);
     };
     source.onerror = () => {
       URL.revokeObjectURL(sourceUrl);
@@ -146,15 +145,22 @@ async function optimizeEventImage(file) {
     source.src = sourceUrl;
   });
 }
-async function eventImageUrl(eventId) {
+function fileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('No se pudo preparar el flyer.'));
+    reader.readAsDataURL(file);
+  });
+}
+async function eventImageUrl() {
   if (!selectedEventImageFile) return $('#event-image-url').value.trim();
   const feedback = $('#event-form-feedback');
-  feedback.textContent = 'Optimizando y subiendo flyer...';
+  feedback.textContent = 'Optimizando flyer...';
   feedback.classList.remove('error');
   const image = await optimizeEventImage(selectedEventImageFile);
-  const imageRef = storageRef(storage, `event-flyers/${eventId}/${randomToken()}.webp`);
-  await uploadBytes(imageRef, image, { contentType: image.type, cacheControl: 'public,max-age=31536000,immutable' });
-  return getDownloadURL(imageRef);
+  if (image.size > EVENT_IMAGE_MAX_EMBEDDED_BYTES) userError('El flyer optimizado supera 500 KB. Usa una imagen con menos detalle o menor tamaño.');
+  return fileAsDataUrl(image);
 }
 function isCourtesy(person) { return person.ticketType === 'courtesy'; }
 function ticketLabel(ticket) { return ticket.ticketType === 'courtesy' ? 'Cortesía' : 'Regular'; }
@@ -922,7 +928,7 @@ async function createEvent(event) {
     time: parseEventTime($('#event-time').value),
     location: $('#event-location').value.trim(),
     status: $('#event-status').value,
-    imageUrl: await eventImageUrl(eventRef.id),
+    imageUrl: await eventImageUrl(),
     description: $('#event-description').value.trim(),
     createdAt: serverTimestamp(),
   };
@@ -978,7 +984,7 @@ async function updateEvent(event) {
     : null;
   if (linkedBenefits?.docs.some((item) => !item.data().usedAt)) userError('No se puede despublicar este evento mientras tenga beneficios disponibles. Canjéalos o reasígnalos primero.');
   if (affectedBenefits && affectedBenefits.docs.length > 180) userError('Este evento tiene demasiados beneficios asignados para cambiar su nombre desde el navegador. Contacta al soporte técnico.');
-  updates.imageUrl = await eventImageUrl(eventId);
+  updates.imageUrl = await eventImageUrl();
   if (affectedBenefits) await updateEventAndBenefitNames(eventId, { ...existingData, ...updates }, affectedBenefits, updates.name);
   else await setDoc(doc(db, 'events', eventId), { ...existingData, ...updates }, { merge: false });
   if (existing.status !== 'published' && updates.status === 'published') await resolvePendingBenefits({ id: eventId, ...existingData, ...updates });

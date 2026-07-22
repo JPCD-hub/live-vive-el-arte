@@ -47,6 +47,15 @@ function formatEventTime(value) {
   return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
 }
 
+function eventImageSource(value) {
+  if (typeof value !== 'string' || !value) return '';
+  if (value.startsWith('data:image/webp;base64,')) return value;
+  try {
+    const url = new URL(value, window.location.href);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.toString() : '';
+  } catch (_) { return ''; }
+}
+
 function localToday() {
   const now = new Date();
   now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -112,21 +121,17 @@ function renderPublicEvents(events) {
   status.textContent = `${upcoming.length} ${upcoming.length === 1 ? 'encuentro disponible' : 'encuentros disponibles'}.`;
   upcoming.forEach((event) => {
     const article = create('article', undefined, 'public-event-card');
-    if (event.imageUrl) {
-      try {
-        const imageUrl = new URL(event.imageUrl, window.location.href);
-        if (imageUrl.protocol === 'https:' || imageUrl.protocol === 'http:') {
-          const image = document.createElement('img');
-          image.src = imageUrl.toString();
-          image.alt = `Imagen del evento ${event.name || 'Live!'}`;
-          image.loading = 'lazy';
-          image.decoding = 'async';
-          image.fetchPriority = 'low';
-          image.width = 1200;
-          image.height = 1500;
-          article.append(image);
-        }
-      } catch (_) { /* Invalid optional image URLs are not rendered. */ }
+    const imageUrl = eventImageSource(event.imageUrl);
+    if (imageUrl) {
+      const image = document.createElement('img');
+      image.src = imageUrl;
+      image.alt = `Imagen del evento ${event.name || 'Live!'}`;
+      image.loading = 'lazy';
+      image.decoding = 'async';
+      image.fetchPriority = 'low';
+      image.width = 1200;
+      image.height = 1500;
+      article.append(image);
     }
     const time = create('time', formatDate(event.date));
     if (event.date) time.dateTime = event.date;
