@@ -39,7 +39,7 @@ const BENEFIT_VISITS = 5;
 const APP_NAME = 'live-vive-el-arte';
 const EVENT_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 const EVENT_IMAGE_MAX_DIMENSION = 1000;
-const EVENT_IMAGE_MAX_EMBEDDED_BYTES = 500 * 1024;
+const EVENT_IMAGE_MAX_EMBEDDED_BYTES = 600 * 1024;
 const state = { people: [], events: [], checkins: [], benefits: [], tickets: new Map() };
 const $ = (selector) => document.querySelector(selector);
 let scanner = null;
@@ -123,20 +123,12 @@ function previewSelectedEventImage(file) {
 }
 async function optimizeEventImage(file) {
   validateEventImage(file);
-  return new Promise((resolve, reject) => {
+  const source = await new Promise((resolve, reject) => {
     const source = new Image();
     const sourceUrl = URL.createObjectURL(file);
     source.onload = () => {
       URL.revokeObjectURL(sourceUrl);
-      const scale = Math.min(1, EVENT_IMAGE_MAX_DIMENSION / Math.max(source.naturalWidth, source.naturalHeight));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
-      canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
-        if (!blob) return reject(new Error('No se pudo optimizar el flyer.'));
-        resolve(new File([blob], 'flyer.webp', { type: 'image/webp' }));
-      }, 'image/webp', 0.72);
+      resolve(source);
     };
     source.onerror = () => {
       URL.revokeObjectURL(sourceUrl);
@@ -144,6 +136,20 @@ async function optimizeEventImage(file) {
     };
     source.src = sourceUrl;
   });
+  let maximumDimension = EVENT_IMAGE_MAX_DIMENSION;
+  let quality = 0.8;
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    const scale = Math.min(1, maximumDimension / Math.max(source.naturalWidth, source.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(source.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(source.naturalHeight * scale));
+    canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('No se pudo optimizar el flyer.')), 'image/webp', quality));
+    if (blob.size <= EVENT_IMAGE_MAX_EMBEDDED_BYTES) return new File([blob], 'flyer.webp', { type: 'image/webp' });
+    maximumDimension = Math.max(240, Math.round(maximumDimension * 0.72));
+    quality = Math.max(0.45, quality - 0.08);
+  }
+  userError('No se pudo reducir el flyer lo suficiente. Prueba con otra imagen.');
 }
 function fileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -159,7 +165,6 @@ async function eventImageUrl() {
   feedback.textContent = 'Optimizando flyer...';
   feedback.classList.remove('error');
   const image = await optimizeEventImage(selectedEventImageFile);
-  if (image.size > EVENT_IMAGE_MAX_EMBEDDED_BYTES) userError('El flyer optimizado supera 500 KB. Usa una imagen con menos detalle o menor tamaño.');
   return fileAsDataUrl(image);
 }
 function isCourtesy(person) { return person.ticketType === 'courtesy'; }
