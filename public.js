@@ -134,13 +134,15 @@ function renderPublicEvents(events) {
       article.classList.add('public-event-card--with-flyer');
       article.append(flyer);
     }
+    const content = create('div', undefined, 'event-card-content');
     const time = create('time', formatDate(event.date));
     if (event.date) time.dateTime = event.date;
     const title = create('h3', event.name || 'Encuentro Live!');
     const description = create('p', event.description || 'Pronto compartiremos más información sobre este encuentro.');
-    article.append(time, title, description);
+    content.append(time, title, description);
     const meta = [event.status === 'published' ? 'Programado' : '', formatEventTime(event.time), event.location].filter(Boolean).join(' · ');
-    if (meta) article.append(create('p', meta, 'event-meta'));
+    if (meta) content.append(create('p', meta, 'event-meta'));
+    article.append(content);
     container.append(article);
   });
 }
