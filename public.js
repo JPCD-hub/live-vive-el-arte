@@ -130,8 +130,6 @@ function renderPublicEvents(events) {
       image.loading = 'lazy';
       image.decoding = 'async';
       image.fetchPriority = 'low';
-      image.width = 1200;
-      image.height = 1500;
       flyer.append(image);
       article.classList.add('public-event-card--with-flyer');
       article.append(flyer);
